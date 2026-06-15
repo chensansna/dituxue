@@ -173,8 +173,15 @@ export function ReviewWorkspace() {
   }
 
   async function runBatch() {
+    const targets = queue.filter((item) => item.fileName && !item.hasReview);
+    const nextRows = targets.map((item) => ({ ...item, batchStatus: "pending" as const }));
+    setBatchRows(nextRows);
+    if (!nextRows.length) {
+      message.info("当前没有需要形式审查的地图");
+      return;
+    }
     setBatchRunning(true);
-    for (const row of batchRows) {
+    for (const row of nextRows) {
       setBatchRows((current) => current.map((item) => item.id === row.id ? { ...item, batchStatus: "processing" } : item));
       try {
         await runReview(row.id);
