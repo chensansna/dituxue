@@ -27,6 +27,14 @@ type Submission = {
   submission_versions: Version[];
 };
 const checkLabels: Record<string, string> = { north_arrow: "指北针", scale_bar: "比例尺", legend: "图例", coordinate_grid: "坐标格网" };
+const statusLabels: Record<string, string> = {
+  ai_processing: "上传处理中",
+  ai_failed: "AI 审查失败",
+  pending_teacher_review: "待教师复评",
+  returned: "待修改",
+  reviewed: "复评完成",
+  graded: "已评分",
+};
 
 export function StudentSubmissionsDashboard() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -70,7 +78,7 @@ export function StudentSubmissionsDashboard() {
     { title: "提交方式", dataIndex: "submitted_by_teacher", width: 110, render: (value) => value ? "教师代交" : "学生提交" },
     { title: "上传时间", dataIndex: "created_at", width: 180, render: (value) => new Date(value).toLocaleString("zh-CN") },
     { title: "文件", render: (_, row) => row.file ? <Button type="link" onClick={() => void openFile(row.file.id)}>{row.file.original_name}</Button> : "上传未完成" },
-    { title: "状态", dataIndex: "status", width: 120, render: (value) => <Tag>{value}</Tag> },
+    { title: "状态", dataIndex: "status", width: 120, render: (value) => <Tag>{statusLabels[value] ?? value}</Tag> },
     {
       title: "形式审查",
       render: (_, row) => row.review ? (

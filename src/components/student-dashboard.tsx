@@ -19,7 +19,7 @@ type StudentAssignment = {
 };
 
 const statusLabels: Record<string, string> = {
-  ai_processing: "AI 审查中",
+  ai_processing: "上传处理中",
   ai_failed: "AI 审查失败",
   pending_teacher_review: "待教师复评",
   returned: "待修改",

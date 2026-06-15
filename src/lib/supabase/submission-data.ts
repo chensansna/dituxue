@@ -105,6 +105,8 @@ export async function prepareSubmission(actor: Actor, input: UploadInput) {
   });
   if (versionError || !versionRows?.length) throw versionError ?? new Error("创建提交版本失败");
   const version = versionRows[0];
+  const pendingUpload = await admin.from("submissions").update({ status: "ai_processing", updated_at: new Date().toISOString() }).eq("id", version.submission_id);
+  if (pendingUpload.error) throw pendingUpload.error;
   const fileName = safeFileName(input.originalName);
   const root = `${targetStudentId}/${version.submission_id}/${version.version_id}`;
   const originalPath = `${root}/original/${fileName}`;
@@ -192,11 +194,13 @@ export async function listStudentAssignments(studentId: string) {
   if (!classIds.length) return [];
   const classNames = new Map((memberships ?? []).map((item) => [item.class_id, singleRelation(item.classes)?.name ?? "未分班"]));
   const { data: assignments, error } = await admin.from("assignments")
-    .select("id,title,description,class_id,status,deadline,extensions(student_id,extended_deadline,reason),submissions(id,student_id,status,current_version,returned_reason,teacher_feedback,grades(final_score,feedback,published_at))")
+    .select("id,title,description,class_id,status,deadline,extensions(student_id,extended_deadline,reason),submissions(id,student_id,status,current_version,returned_reason,teacher_feedback,submission_versions(version_no,files(id)),grades(final_score,feedback,published_at))")
     .in("class_id", classIds).neq("status", "draft").is("deleted_at", null).order("deadline");
   if (error) throw error;
   return (assignments ?? []).map((assignment) => {
-    const submission = (assignment.submissions ?? []).find((item) => item.student_id === studentId) ?? null;
+    const candidate = (assignment.submissions ?? []).find((item) => item.student_id === studentId) ?? null;
+    const currentVersion = candidate?.submission_versions?.find((version) => version.version_no === candidate.current_version);
+    const submission = currentVersion?.files?.length ? candidate : null;
     const extension = (assignment.extensions ?? []).find((item) => item.student_id === studentId) ?? null;
     const grade = singleRelation(submission?.grades);
     return {
@@ -222,15 +226,19 @@ export async function listStudentSubmissions(studentId: string) {
     .select("id,status,current_version,returned_reason,teacher_feedback,updated_at,assignments(title),submission_versions(id,version_no,submitted_by_teacher,created_at,files(id,original_name,mime_type,size_bytes),review_results(id,raw_result,overall_suggestion,visible_to_student,confirmed_at)),grades(final_score,feedback,published_at)")
     .eq("student_id", studentId).is("deleted_at", null).order("updated_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((submission) => ({
-    ...submission,
-    teacher_feedback: ["returned", "reviewed", "graded"].includes(submission.status) ? submission.teacher_feedback : null,
-    grades: (submission.grades ?? []).filter((grade) => grade.published_at),
-    submission_versions: (submission.submission_versions ?? []).map((version) => ({
+  return (data ?? []).flatMap((submission) => {
+    const completedVersions = (submission.submission_versions ?? []).filter((version) => version.files?.length).map((version) => ({
       ...version,
       review_results: (version.review_results ?? []).filter((review) => review.visible_to_student),
-    })),
-  }));
+    }));
+    if (!completedVersions.length) return [];
+    return [{
+      ...submission,
+      teacher_feedback: ["returned", "reviewed", "graded"].includes(submission.status) ? submission.teacher_feedback : null,
+      grades: (submission.grades ?? []).filter((grade) => grade.published_at),
+      submission_versions: completedVersions,
+    }];
+  });
 }
 
 export async function listPublishedGrades(studentId: string) {
@@ -258,13 +266,14 @@ export async function listTeacherReviewQueue(teacherId: string) {
     .in("assignment_id", assignmentIds)
     .is("deleted_at", null).order("updated_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((item) => {
+  return (data ?? []).flatMap((item) => {
     const assignment = singleRelation(item.assignments);
     const student = singleRelation(item.profiles);
     const latestVersion = (item.submission_versions ?? []).find((version) => version.version_no === item.current_version);
     const file = singleRelation(latestVersion?.files);
     const review = singleRelation(latestVersion?.review_results);
-    return {
+    if (!file) return [];
+    return [{
       id: item.id,
       status: item.status,
       updatedAt: item.updated_at,
@@ -275,7 +284,7 @@ export async function listTeacherReviewQueue(teacherId: string) {
       studentNo: student?.student_no ?? "",
       fileName: file?.original_name ?? null,
       hasReview: Boolean(review),
-    };
+    }];
   });
 }
 
