@@ -10,7 +10,13 @@ type Version = {
   submitted_by_teacher: boolean;
   created_at: string;
   files: Array<{ id: string; original_name: string; mime_type: string; size_bytes: number }>;
-  review_results: Array<{ id: string; overall_suggestion: string; visible_to_student: boolean; confirmed_at: string | null }>;
+  review_results: Array<{
+    id: string;
+    overall_suggestion: string;
+    visible_to_student: boolean;
+    confirmed_at: string | null;
+    raw_result: { items?: Array<{ rubricId: string; present: boolean }> };
+  }>;
 };
 type Submission = {
   id: string;
@@ -20,6 +26,7 @@ type Submission = {
   assignments: { title: string } | Array<{ title: string }>;
   submission_versions: Version[];
 };
+const checkLabels: Record<string, string> = { north_arrow: "指北针", scale_bar: "比例尺", legend: "图例", coordinate_grid: "坐标格网" };
 
 export function StudentSubmissionsDashboard() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -64,7 +71,17 @@ export function StudentSubmissionsDashboard() {
     { title: "上传时间", dataIndex: "created_at", width: 180, render: (value) => new Date(value).toLocaleString("zh-CN") },
     { title: "文件", render: (_, row) => row.file ? <Button type="link" onClick={() => void openFile(row.file.id)}>{row.file.original_name}</Button> : "上传未完成" },
     { title: "状态", dataIndex: "status", width: 120, render: (value) => <Tag>{value}</Tag> },
-    { title: "形式审查", render: (_, row) => row.review?.overall_suggestion ?? "教师尚未确认" },
+    {
+      title: "形式审查",
+      render: (_, row) => row.review ? (
+        <div>
+          <div>{row.review.overall_suggestion}</div>
+          <div style={{ marginTop: 6 }}>
+            {(row.review.raw_result?.items ?? []).map((item) => <Tag key={item.rubricId} color={item.present ? "green" : "red"}>{checkLabels[item.rubricId] ?? item.rubricId}：{item.present ? "有" : "无"}</Tag>)}
+          </div>
+        </div>
+      ) : "教师尚未确认",
+    },
   ];
 
   return <section className="panel"><Table rowKey="key" loading={loading} columns={columns} dataSource={rows} locale={{ emptyText: <Empty description="暂无提交记录" /> }} /></section>;
