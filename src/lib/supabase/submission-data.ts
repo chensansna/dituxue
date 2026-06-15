@@ -49,6 +49,18 @@ function audit(actorId: string, action: string, entityType: string, entityId: st
   return admin.from("audit_logs").insert({ actor_id: actorId, action, entity_type: entityType, entity_id: entityId, metadata });
 }
 
+async function storageObjectToDataUrl(path: string, mimeType: string) {
+  const admin = createSupabaseAdminClient();
+  const signed = await admin.storage.from(MAP_BUCKET).createSignedUrl(path, 900);
+  if (signed.error) throw signed.error;
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = baseUrl ? new URL(signed.data.signedUrl, baseUrl).toString() : signed.data.signedUrl;
+  const response = await fetch(url);
+  if (!response.ok) throw new HttpError(502, "无法读取已上传的地图文件，请重新上传后再审查");
+  const arrayBuffer = await response.arrayBuffer();
+  return `data:${mimeType};base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+}
+
 async function getAssignmentContext(assignmentId: string) {
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
@@ -326,8 +338,7 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   const reviewPath = fileRow?.preview_paths?.[0] ?? fileRow?.storage_path;
   if (!reviewPath) throw new HttpError(400, "没有可供审查的图片");
   if (file.mime_type === "application/pdf" && !fileRow?.preview_paths?.[0]) throw new HttpError(400, "PDF 缺少第一页预览图，请重新提交");
-  const signed = await admin.storage.from(MAP_BUCKET).createSignedUrl(reviewPath, 900);
-  if (signed.error) throw signed.error;
+  const imageForReview = await storageObjectToDataUrl(reviewPath, fileRow?.preview_paths?.[0] ? "image/jpeg" : file.mime_type);
   const startedAt = Date.now();
   const { data: job, error: jobError } = await admin.from("ai_jobs").insert({
     kind: "map_review",
@@ -338,7 +349,7 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   }).select("id").single();
   if (jobError || !job) throw jobError ?? new Error("创建 AI 任务失败");
   try {
-    const result = reviewResultSchema.parse(await reviewMap(signed.data.signedUrl, FORMAL_CHECKS.map((item) => ({ ...item }))));
+    const result = reviewResultSchema.parse(await reviewMap(imageForReview, FORMAL_CHECKS.map((item) => ({ ...item }))));
     const { data: review, error } = await admin.from("review_results").upsert({
       version_id: latest.id,
       ai_job_id: job.id,
