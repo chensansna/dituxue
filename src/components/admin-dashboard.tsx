@@ -1,22 +1,24 @@
 "use client";
 
-import { Button, Progress, Table, Tag } from "antd";
+import Link from "next/link";
+import { Button, Table, Tag } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { MetricGrid } from "./metric-grid";
+import type { AdminOverviewData } from "@/lib/supabase/admin-overview";
 
-const jobs = [
-  {key:"1",id:"qwen_batch_20260615_0042",type:"地图批量审查",owner:"王静怡",count:"42 / 42",duration:"08:32",state:"已完成"},
-  {key:"2",id:"qwen_live_20260615_1831",type:"单份地图审查",owner:"学生提交",count:"1 / 1",duration:"00:18",state:"已完成"},
-  {key:"3",id:"qwen_roster_20260615_0038",type:"名单识别",owner:"李明哲",count:"48 / 48",duration:"00:24",state:"已完成"},
-];
-
-export function AdminDashboard() {
+export function AdminDashboard({ data }: { data: AdminOverviewData }) {
+  const stateColor = (state: string) => state === "已完成" ? "green" : state === "失败" ? "red" : "gold";
   return <>
-    <div className="page-head"><div><h1>系统运行概览</h1><p>管理教师账号，监控 Qwen 调用、存储和服务运行状态。</p></div><Button type="primary" icon={<PlusOutlined />}>创建教师账号</Button></div>
-    <MetricGrid items={[{label:"教师账号",value:12,note:"本周新增 2 个"},{label:"学生账号",value:486,note:"覆盖 9 个教学班"},{label:"今日 AI 调用",value:93,note:"成功率 98.9%"},{label:"私有存储",value:"8.7 GB",note:"当前用量 43.5%"}]} />
+    <div className="page-head"><div><h1>系统运行概览</h1><p>显示 Supabase 中的真实账号、AI 调用与文件数据。</p></div><Link href="/admin/users"><Button type="primary" icon={<PlusOutlined />}>创建教师账号</Button></Link></div>
+    <MetricGrid items={[
+      {label:"教师账号",value:data.teacherCount,note:"当前启用的教师账号"},
+      {label:"学生账号",value:data.studentCount,note:`覆盖 ${data.classCount} 个教学班`},
+      {label:"今日 AI 调用",value:data.todayAiCount,note:`成功率 ${data.todayAiSuccessRate}`},
+      {label:"私有存储",value:data.storageUsage,note:"已登记地图原件大小"},
+    ]} />
     <div className="two-col">
-      <section className="panel"><div className="panel-head"><span className="panel-title">最近 AI 任务</span><Button type="link">查看全部</Button></div><Table className="desktop-table" dataSource={jobs} pagination={false} columns={[{title:"任务编号",dataIndex:"id"},{title:"类型",dataIndex:"type"},{title:"发起人",dataIndex:"owner"},{title:"处理进度",dataIndex:"count"},{title:"耗时",dataIndex:"duration"},{title:"状态",dataIndex:"state",render:(v:string)=><Tag color="green">{v}</Tag>}]} /><div className="mobile-cards panel-body">{jobs.map(j=><div className="review-item" key={j.key}><b>{j.type}</b><div className="review-copy">{j.id}<br />{j.count} · {j.duration}</div></div>)}</div></section>
-      <section className="panel"><div className="panel-head"><span className="panel-title">服务状态</span><Tag color="green">全部正常</Tag></div><div className="panel-body">{[["Vercel 应用服务",100],["Supabase 数据库",100],["Supabase 私有存储",100],["Qwen 多模态 API",99]].map(([n,p])=><div className="review-item" key={String(n)}><div className="review-title"><span>{n}</span><span>{p}%</span></div><Progress percent={Number(p)} showInfo={false} strokeColor="#176b4d" /></div>)}</div></section>
+      <section className="panel"><div className="panel-head"><span className="panel-title">最近 AI 任务</span><Link href="/admin/ai-jobs"><Button type="link">查看全部</Button></Link></div><Table rowKey="id" className="desktop-table" dataSource={data.recentJobs} pagination={false} locale={{emptyText:"暂无 AI 调用记录"}} columns={[{title:"任务编号",dataIndex:"id",ellipsis:true},{title:"类型",dataIndex:"type"},{title:"发起人",dataIndex:"owner"},{title:"处理进度",dataIndex:"count"},{title:"耗时",dataIndex:"duration"},{title:"状态",dataIndex:"state",render:(v:string)=><Tag color={stateColor(v)}>{v}</Tag>}]} /><div className="mobile-cards panel-body">{data.recentJobs.map(j=><div className="review-item" key={j.id}><b>{j.type}</b><div className="review-copy">{j.id}<br />{j.count} · {j.duration}</div></div>)}</div></section>
+      <section className="panel"><div className="panel-head"><span className="panel-title">服务配置</span><Tag color="green">已连接</Tag></div><div className="panel-body">{["Vercel 应用已部署","Supabase 数据库已连接","Supabase 私有存储已连接","Qwen API 已配置"].map((name)=><div className="review-item" key={name}><div className="review-title"><span>{name}</span><Tag color="green">正常</Tag></div></div>)}</div></section>
     </div>
   </>;
 }
