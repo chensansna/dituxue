@@ -340,7 +340,8 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   if (!reviewPath) throw new HttpError(400, "没有可供审查的图片");
   if (file.mime_type === "application/pdf" && !fileRow?.preview_paths?.[0]) throw new HttpError(400, "PDF 缺少第一页预览图，请重新提交");
   const reviewMimeType = fileRow?.preview_paths?.[0] ? "image/jpeg" : file.mime_type;
-  const imageForReview = signQwenImageProxyUrl(reviewPath, reviewMimeType) ?? await storageObjectToDataUrl(reviewPath, reviewMimeType);
+  const proxyUrl = signQwenImageProxyUrl(reviewPath, reviewMimeType);
+  const imageForReview = proxyUrl ?? await storageObjectToDataUrl(reviewPath, reviewMimeType);
   const startedAt = Date.now();
   const { data: job, error: jobError } = await admin.from("ai_jobs").insert({
     kind: "map_review",
@@ -368,6 +369,14 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
     await audit(teacherId, "review.ai_completed", "submission", submissionId, { reviewResultId: review?.id, versionId: latest.id });
     return result;
   } catch (error) {
+    console.error("Qwen map review failed", {
+      submissionId,
+      versionId: latest.id,
+      inputKind: proxyUrl ? "https-proxy" : "data-url",
+      mimeType: reviewMimeType,
+      model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+      message: error instanceof Error ? error.message : String(error),
+    });
     await admin.from("ai_jobs").update({ status: "failed", error_message: error instanceof Error ? error.message.slice(0, 500) : "Qwen 审查失败", duration_ms: Date.now() - startedAt, updated_at: new Date().toISOString() }).eq("id", job.id);
     await admin.from("submissions").update({ status: "ai_failed", updated_at: new Date().toISOString() }).eq("id", submissionId);
     throw error;
