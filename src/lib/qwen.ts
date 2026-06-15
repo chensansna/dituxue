@@ -1,19 +1,32 @@
 import OpenAI from "openai";
 import { reviewResultSchema, rosterSchema } from "./domain";
 
+const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const DEFAULT_QWEN_VISION_MODEL = "qwen3-vl-plus";
+
+function qwenBaseUrl() {
+  const value = process.env.QWEN_BASE_URL?.trim();
+  if (!value || value.includes("api.example.com")) return DEFAULT_QWEN_BASE_URL;
+  return value.replace(/\/+$/, "");
+}
+
+export function qwenVisionModel() {
+  return process.env.QWEN_VISION_MODEL?.trim() || DEFAULT_QWEN_VISION_MODEL;
+}
+
 function client() {
   if (!process.env.QWEN_API_KEY) throw new Error("QWEN_API_KEY 未配置");
-  return new OpenAI({ apiKey: process.env.QWEN_API_KEY, baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1", maxRetries: 3 });
+  return new OpenAI({ apiKey: process.env.QWEN_API_KEY, baseURL: qwenBaseUrl(), maxRetries: 3 });
 }
 
 function batchClient() {
   if (!process.env.QWEN_API_KEY) throw new Error("QWEN_API_KEY 未配置");
-  return new OpenAI({ apiKey: process.env.QWEN_API_KEY, baseURL: process.env.QWEN_BATCH_BASE_URL ?? "https://batch.dashscope.aliyuncs.com/compatible-mode/v1", maxRetries: 3 });
+  return new OpenAI({ apiKey: process.env.QWEN_API_KEY, baseURL: process.env.QWEN_BATCH_BASE_URL?.trim() || "https://batch.dashscope.aliyuncs.com/compatible-mode/v1", maxRetries: 3 });
 }
 
 export async function checkQwenConnection() {
   const response = await client().chat.completions.create({
-    model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+    model: qwenVisionModel(),
     temperature: 0,
     max_tokens: 8,
     messages: [{ role: "user", content: "只回复：连接成功" }],
@@ -32,7 +45,7 @@ export async function createReviewBatch(jobs: Array<{ customId: string; imageUrl
     method: "POST",
     url: "/v1/chat/completions",
     body: {
-      model: process.env.QWEN_VISION_MODEL ?? "qwen-vl-max",
+      model: qwenVisionModel(),
       temperature: 0.1,
       messages: [{ role: "user", content: [
         { type: "image_url", image_url: { url: job.imageUrl } },
@@ -51,7 +64,7 @@ function jsonFromText(text: string) {
 
 export async function reviewMap(imageUrl: string, rubric: Array<{ id: string; title: string }>) {
   const response = await client().chat.completions.create({
-    model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+    model: qwenVisionModel(),
     temperature: 0.1,
     messages: [{ role: "user", content: [
       { type: "image_url", image_url: { url: imageUrl } },
@@ -72,7 +85,7 @@ export async function reviewMap(imageUrl: string, rubric: Array<{ id: string; ti
 
 export async function parseRoster(fileUrl: string) {
   const response = await client().chat.completions.create({
-    model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+    model: qwenVisionModel(),
     temperature: 0,
     messages: [{ role: "user", content: [
       { type: "image_url", image_url: { url: fileUrl } },

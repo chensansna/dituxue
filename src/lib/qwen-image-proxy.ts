@@ -23,8 +23,8 @@ export function signQwenImageProxyUrl(path: string, mimeType: string, ttlSeconds
   const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
   const signature = signQwenImageProxyPayload(path, mimeType, expires);
   const extension = mimeType === "image/jpeg" ? "jpg" : "png";
-  const params = new URLSearchParams({ path, mime: mimeType, expires: String(expires) });
-  return `${origin}/api/qwen/review-image/${signature}/map.${extension}?${params.toString()}`;
+  const token = Buffer.from(JSON.stringify({ path, mime: mimeType, expires, sig: signature })).toString("base64url");
+  return `${origin}/api/qwen/review-image/${token}/map.${extension}`;
 }
 
 export function signQwenImageProxyPayload(path: string, mimeType: string, expires: number) {

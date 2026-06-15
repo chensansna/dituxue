@@ -3,7 +3,7 @@ import type { AppRole } from "@/lib/auth";
 import { HttpError } from "@/lib/auth";
 import { reviewResultSchema, type SubmissionStatus } from "@/lib/domain";
 import { signQwenImageProxyUrl } from "@/lib/qwen-image-proxy";
-import { reviewMap } from "@/lib/qwen";
+import { qwenVisionModel, reviewMap } from "@/lib/qwen";
 import { createSupabaseAdminClient } from "./admin";
 
 export const MAP_BUCKET = "map-submissions";
@@ -345,7 +345,7 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   const startedAt = Date.now();
   const { data: job, error: jobError } = await admin.from("ai_jobs").insert({
     kind: "map_review",
-    model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+    model: qwenVisionModel(),
     status: "processing",
     requested_by: teacherId,
     version_id: latest.id,
@@ -374,7 +374,7 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
       versionId: latest.id,
       inputKind: proxyUrl ? "https-proxy" : "data-url",
       mimeType: reviewMimeType,
-      model: process.env.QWEN_VISION_MODEL ?? "qwen3-vl-plus",
+      model: qwenVisionModel(),
       message: error instanceof Error ? error.message : String(error),
     });
     await admin.from("ai_jobs").update({ status: "failed", error_message: error instanceof Error ? error.message.slice(0, 500) : "Qwen 审查失败", duration_ms: Date.now() - startedAt, updated_at: new Date().toISOString() }).eq("id", job.id);
