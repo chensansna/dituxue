@@ -34,9 +34,9 @@ function singleRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 function safeFileName(name: string) {
-  const extension = name.includes(".") ? `.${name.split(".").pop()!.toLowerCase()}` : "";
-  const base = name.replace(extension, "").replace(/[^\p{L}\p{N}._-]+/gu, "-").slice(0, 80) || "map";
-  return `${base}-${randomUUID().slice(0, 8)}${extension}`;
+  const rawExtension = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  const extension = /^[a-z0-9]{1,10}$/.test(rawExtension) ? `.${rawExtension}` : "";
+  return `map-${randomUUID()}${extension}`;
 }
 
 function audit(actorId: string, action: string, entityType: string, entityId: string, metadata: Record<string, unknown> = {}) {
