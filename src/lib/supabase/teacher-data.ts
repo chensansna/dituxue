@@ -95,6 +95,9 @@ export async function createClass(teacherId: string, input: { name: string; term
 
 export async function archiveClass(teacherId: string, classId: string) {
   const admin = createSupabaseAdminClient();
+  const { count, error: countError } = await admin.from("class_members").select("student_id", { count: "exact", head: true }).eq("class_id", classId);
+  if (countError) throw countError;
+  if (count) throw new Error("班级内仍有学生，请先删除班级内学生");
   const { error } = await admin.from("classes").update({ deleted_at: new Date().toISOString() }).eq("id", classId).eq("teacher_id", teacherId);
   if (error) throw error;
 }
@@ -204,6 +207,23 @@ export async function disableStudent(teacherId: string, studentId: string) {
   if (error) throw error;
 }
 
+export async function removeStudentsFromClasses(teacherId: string, items: Array<{ id: string; classId: string }>) {
+  const classes = await listClasses(teacherId);
+  const allowedClasses = new Set(classes.map((item) => item.id));
+  const admin = createSupabaseAdminClient();
+  for (const item of items) {
+    if (!allowedClasses.has(item.classId)) throw new Error("班级不属于当前教师");
+    const removed = await admin.from("class_members").delete().eq("class_id", item.classId).eq("student_id", item.id);
+    if (removed.error) throw removed.error;
+    const { count, error } = await admin.from("class_members").select("class_id", { count: "exact", head: true }).eq("student_id", item.id);
+    if (error) throw error;
+    if (!count) {
+      const disabled = await admin.from("profiles").update({ disabled_at: new Date().toISOString() }).eq("id", item.id).eq("role", "student");
+      if (disabled.error) throw disabled.error;
+    }
+  }
+}
+
 export async function listAssignments(teacherId: string): Promise<TeacherAssignment[]> {
   const classes = await listClasses(teacherId);
   const classMap = new Map(classes.map((item) => [item.id, item.name]));
@@ -256,6 +276,19 @@ export async function createAssignment(input: {
     deadline,
   }));
   const { error } = await admin.from("assignments").insert(rows);
+  if (error) throw error;
+}
+
+export async function archiveAssignment(teacherId: string, assignmentId: string) {
+  const classes = await listClasses(teacherId);
+  const classIds = classes.map((item) => item.id);
+  if (!classIds.length) throw new Error("作业不属于当前教师");
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
+    .from("assignments")
+    .update({ deleted_at: new Date().toISOString(), status: "archived" })
+    .eq("id", assignmentId)
+    .in("class_id", classIds);
   if (error) throw error;
 }
 

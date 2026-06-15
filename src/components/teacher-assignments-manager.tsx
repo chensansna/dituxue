@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Checkbox, DatePicker, Form, Input, message, Modal, Progress, Select, Space, Table, Tag } from "antd";
-import { DownloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import { Button, Checkbox, DatePicker, Form, Input, message, Modal, Popconfirm, Progress, Select, Space, Table, Tag } from "antd";
+import { DeleteOutlined, DownloadOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { MetricGrid } from "./metric-grid";
 
@@ -96,6 +96,21 @@ export function TeacherAssignmentsManager() {
     message.success("作业已保存到 Supabase");
   }
 
+  async function deleteAssignment(id: string) {
+    const response = await fetch("/api/teacher/assignments", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      message.error(result.error ?? "删除作业失败");
+      return;
+    }
+    setAssignments(result.assignments);
+    message.success("作业已删除，历史提交和成绩仍保留");
+  }
+
   const columns: ColumnsType<TeacherAssignment> = [
     { title: "作业", dataIndex: "title", render: (value, row) => <div><b>{value}</b><div className="topbar-meta">{row.description || "无任务说明"}</div></div> },
     { title: "班级", dataIndex: "className", width: 180 },
@@ -103,6 +118,7 @@ export function TeacherAssignmentsManager() {
     { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag color={value === "published" ? "green" : "default"}>{statusLabel(value)}</Tag> },
     { title: "提交", width: 130, render: (_, row) => `${row.submittedCount} 份` },
     { title: "评分进度", width: 180, render: (_, row) => <Progress size="small" percent={row.submittedCount ? Math.round(row.gradedCount / row.submittedCount * 100) : 0} strokeColor="#176b4d" /> },
+    { title: "操作", width: 100, render: (_, row) => <Popconfirm title={`删除作业“${row.title}”？`} description="学生端将不再显示，历史提交、审查和成绩仍保留。" okText="删除" cancelText="取消" onConfirm={() => void deleteAssignment(row.id)}><Button danger size="small" icon={<DeleteOutlined />}>删除</Button></Popconfirm> },
   ];
 
   return (

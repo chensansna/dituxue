@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Form, Input, message, Modal, Select, Space, Table, Tag } from "antd";
-import { DownloadOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
+import { Button, Empty, Form, Input, message, Modal, Popconfirm, Select, Space, Table, Tag } from "antd";
+import { DeleteOutlined, DownloadOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { MetricGrid } from "./metric-grid";
 
@@ -61,6 +61,7 @@ export function TeacherStudentsManager() {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [query, setQuery] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
+  const [selectedStudentKeys, setSelectedStudentKeys] = useState<React.Key[]>([]);
   const [classForm] = Form.useForm();
   const [studentForm] = Form.useForm();
   const [importForm] = Form.useForm();
@@ -170,6 +171,40 @@ export function TeacherStudentsManager() {
     message.success("学生已停用");
   }
 
+  async function deleteStudents() {
+    const selected = students.filter((student) => selectedStudentKeys.includes(`${student.classId}-${student.id}`));
+    const response = await fetch("/api/teacher/students", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: selected.map((student) => ({ id: student.id, classId: student.classId })) }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      message.error(result.error ?? "删除学生失败");
+      return;
+    }
+    setStudents(result.students);
+    setSelectedStudentKeys([]);
+    await load();
+    message.success(`已从班级中删除 ${selected.length} 名学生，历史记录仍保留`);
+  }
+
+  async function deleteClass(id: string) {
+    const response = await fetch("/api/teacher/classes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      message.error(result.error ?? "删除班级失败");
+      return;
+    }
+    setClasses(result.classes);
+    setClassFilter("all");
+    message.success("班级已删除，历史数据仍保留");
+  }
+
   const columns: ColumnsType<TeacherStudent> = [
     { title: "学号", dataIndex: "studentNo" },
     { title: "姓名", dataIndex: "name" },
@@ -209,11 +244,16 @@ export function TeacherStudentsManager() {
           </div>
           <div className="panel-body class-list">
             {classes.map((item) => (
-              <button className={`class-card ${classFilter === item.id ? "active" : ""}`} key={item.id} type="button" onClick={() => setClassFilter(item.id)}>
-                <b>{item.name}</b>
-                <span>{item.term}</span>
-                <Tag>{item.studentCount} 人</Tag>
-              </button>
+              <div className={`class-card ${classFilter === item.id ? "active" : ""}`} key={item.id}>
+                <button className="class-card-select" type="button" onClick={() => setClassFilter(item.id)}>
+                  <b>{item.name}</b>
+                  <span>{item.term}</span>
+                  <Tag>{item.studentCount} 人</Tag>
+                </button>
+                <Popconfirm title={`删除班级“${item.name}”？`} description="删除前必须先删除班级内学生，历史作业和成绩仍保留。" okText="删除" cancelText="取消" onConfirm={() => void deleteClass(item.id)}>
+                  <Button danger size="small" icon={<DeleteOutlined />}>删除班级</Button>
+                </Popconfirm>
+              </div>
             ))}
             {!classes.length && <Empty description="暂无班级" />}
           </div>
@@ -223,8 +263,18 @@ export function TeacherStudentsManager() {
           <div className="panel-head directory-toolbar">
             <Input prefix={<SearchOutlined />} placeholder="搜索姓名、学号或状态" value={query} onChange={(event) => setQuery(event.target.value)} allowClear />
             <Select value={classFilter} onChange={setClassFilter} options={[{ value: "all", label: "全部班级" }, ...classes.map((item) => ({ value: item.id, label: item.name }))]} />
+            <Popconfirm title="删除所选学生？" description="学生将移出所选班级，历史提交和成绩仍会保留。" okText="删除" cancelText="取消" onConfirm={() => void deleteStudents()}>
+              <Button danger icon={<DeleteOutlined />} disabled={!selectedStudentKeys.length}>删除所选学生</Button>
+            </Popconfirm>
           </div>
-          <Table rowKey="id" loading={loading} columns={columns} dataSource={filteredStudents} pagination={{ pageSize: 8 }} />
+          <Table
+            rowKey={(row) => `${row.classId}-${row.id}`}
+            rowSelection={{ selectedRowKeys: selectedStudentKeys, onChange: setSelectedStudentKeys }}
+            loading={loading}
+            columns={columns}
+            dataSource={filteredStudents}
+            pagination={{ pageSize: 8 }}
+          />
         </section>
       </div>
 

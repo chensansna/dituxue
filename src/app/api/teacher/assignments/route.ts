@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authErrorResponse, requireApiRole } from "@/lib/auth";
-import { createAssignment, listAssignments } from "@/lib/supabase/teacher-data";
+import { archiveAssignment, createAssignment, listAssignments } from "@/lib/supabase/teacher-data";
 
 const assignmentSchema = z.object({
   title: z.string().min(1),
@@ -24,6 +24,17 @@ export async function POST(request: Request) {
   try {
     const { user } = await requireApiRole(["teacher"]);
     await createAssignment({ teacherId: user.id, ...assignmentSchema.parse(await request.json()) });
+    return NextResponse.json({ ok: true, assignments: await listAssignments(user.id) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { user } = await requireApiRole(["teacher"]);
+    const { id } = z.object({ id: z.string().uuid() }).parse(await request.json());
+    await archiveAssignment(user.id, id);
     return NextResponse.json({ ok: true, assignments: await listAssignments(user.id) });
   } catch (error) {
     return authErrorResponse(error);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authErrorResponse, requireApiRole } from "@/lib/auth";
-import { addStudent, disableStudent, listStudents } from "@/lib/supabase/teacher-data";
+import { addStudent, disableStudent, listStudents, removeStudentsFromClasses } from "@/lib/supabase/teacher-data";
 
 const studentSchema = z.object({
   classId: z.string().uuid(),
@@ -38,6 +38,19 @@ export async function PATCH(request: Request) {
     const { user } = await requireApiRole(["teacher"]);
     const { id } = z.object({ id: z.string().uuid() }).parse(await request.json());
     await disableStudent(user.id, id);
+    return NextResponse.json({ ok: true, students: await listStudents(user.id) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { user } = await requireApiRole(["teacher"]);
+    const { items } = z.object({
+      items: z.array(z.object({ id: z.string().uuid(), classId: z.string().uuid() })).min(1).max(200),
+    }).parse(await request.json());
+    await removeStudentsFromClasses(user.id, items);
     return NextResponse.json({ ok: true, students: await listStudents(user.id) });
   } catch (error) {
     return authErrorResponse(error);
