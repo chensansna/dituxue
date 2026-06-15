@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AppRole } from "@/lib/auth";
 import { HttpError } from "@/lib/auth";
 import { reviewResultSchema, type SubmissionStatus } from "@/lib/domain";
+import { signQwenImageProxyUrl } from "@/lib/qwen-image-proxy";
 import { reviewMap } from "@/lib/qwen";
 import { createSupabaseAdminClient } from "./admin";
 
@@ -338,7 +339,8 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   const reviewPath = fileRow?.preview_paths?.[0] ?? fileRow?.storage_path;
   if (!reviewPath) throw new HttpError(400, "没有可供审查的图片");
   if (file.mime_type === "application/pdf" && !fileRow?.preview_paths?.[0]) throw new HttpError(400, "PDF 缺少第一页预览图，请重新提交");
-  const imageForReview = await storageObjectToDataUrl(reviewPath, fileRow?.preview_paths?.[0] ? "image/jpeg" : file.mime_type);
+  const reviewMimeType = fileRow?.preview_paths?.[0] ? "image/jpeg" : file.mime_type;
+  const imageForReview = signQwenImageProxyUrl(reviewPath, reviewMimeType) ?? await storageObjectToDataUrl(reviewPath, reviewMimeType);
   const startedAt = Date.now();
   const { data: job, error: jobError } = await admin.from("ai_jobs").insert({
     kind: "map_review",
