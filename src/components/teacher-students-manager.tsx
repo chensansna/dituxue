@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Form, Input, message, Modal, Popconfirm, Select, Space, Table, Tag } from "antd";
-import { DeleteOutlined, DownloadOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
+import { Button, Empty, Form, Input, message, Modal, Popconfirm, Select, Space, Table, Tag, Upload } from "antd";
+import { DeleteOutlined, DownloadOutlined, FileImageOutlined, PlusOutlined, RobotOutlined, SearchOutlined, TeamOutlined, UserAddOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
+import * as XLSX from "xlsx";
 import { MetricGrid } from "./metric-grid";
 
 type TeacherClass = {
@@ -27,6 +28,7 @@ type TeacherStudent = {
 };
 
 type Credential = { studentNo: string; name: string; password: string };
+type RecognizedStudent = { studentNo: string; name: string; confidence?: number; issue?: string };
 
 function parseRoster(text: string, classId: string) {
   return text
@@ -40,6 +42,10 @@ function parseRoster(text: string, classId: string) {
     .filter((item) => item.studentNo && item.name);
 }
 
+function rosterText(items: RecognizedStudent[]) {
+  return items.map((student) => `${student.studentNo} ${student.name}`).join("\n");
+}
+
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
@@ -51,6 +57,15 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function TeacherStudentsManager() {
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [students, setStudents] = useState<TeacherStudent[]>([]);
@@ -59,6 +74,8 @@ export function TeacherStudentsManager() {
   const [studentOpen, setStudentOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [recognizingRoster, setRecognizingRoster] = useState(false);
+  const [recognizedRoster, setRecognizedRoster] = useState<RecognizedStudent[]>([]);
   const [query, setQuery] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
   const [selectedStudentKeys, setSelectedStudentKeys] = useState<React.Key[]>([]);
@@ -154,6 +171,46 @@ export function TeacherStudentsManager() {
     importForm.resetFields();
     setImportOpen(false);
     message.success(`已导入 ${result.credentials.length} 名学生`);
+  }
+
+  async function recognizeRoster(file: File) {
+    setRecognizingRoster(true);
+    try {
+      let roster: RecognizedStudent[] = [];
+      if (file.type.startsWith("image/")) {
+        const response = await fetch("/api/qwen/roster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileUrl: await fileToDataUrl(file) }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Qwen 名单识别失败");
+        roster = result as RecognizedStudent[];
+      } else if (/\.(csv|xlsx|xls)$/i.test(file.name)) {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+        roster = rows.map((row) => ({
+          studentNo: String(row["学号"] || row["studentNo"] || row["编号"] || "").trim(),
+          name: String(row["姓名"] || row["name"] || "").trim(),
+          confidence: 1,
+        })).filter((student) => student.studentNo && student.name);
+      } else if (/\.docx$/i.test(file.name)) {
+        const mammoth = await import("mammoth/mammoth.browser");
+        const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        roster = parseRoster(result.value, "").map((student) => ({ studentNo: student.studentNo, name: student.name, confidence: 1 }));
+      } else {
+        throw new Error("仅支持 PNG、JPG、CSV、Excel 和 Word .docx 文件");
+      }
+      if (!roster.length) throw new Error("未识别到有效的“学号、姓名”，请检查文件内容");
+      setRecognizedRoster(roster);
+      importForm.setFieldValue("roster", rosterText(roster));
+      message.success(`已识别 ${roster.length} 名学生，请检查后确认导入`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "名单文件解析失败");
+    } finally {
+      setRecognizingRoster(false);
+    }
   }
 
   async function disableStudent(id: string) {
@@ -293,12 +350,39 @@ export function TeacherStudentsManager() {
         </Form>
       </Modal>
 
-      <Modal title="批量导入学生" open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => void importStudents()} okText="确认导入" cancelText="取消">
+      <Modal title="批量导入学生" width={760} open={importOpen} onCancel={() => { setImportOpen(false); setRecognizedRoster([]); }} onOk={() => void importStudents()} okText="确认导入并创建账号" cancelText="取消">
         <Form form={importForm} layout="vertical" initialValues={{ classId: classFilter === "all" ? classes[0]?.id : classFilter }}>
           <Form.Item name="classId" label="导入到班级" rules={[{ required: true, message: "请选择班级" }]}><Select options={classes.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item>
+          <Form.Item label="上传名单文件">
+            <Upload.Dragger
+              accept=".png,.jpg,.jpeg,.csv,.xlsx,.xls,.docx"
+              showUploadList={false}
+              disabled={recognizingRoster}
+              beforeUpload={(file) => {
+                void recognizeRoster(file);
+                return false;
+              }}
+            >
+              <p><FileImageOutlined style={{ fontSize: 28, color: "#176b4d" }} /></p>
+              <p>{recognizingRoster ? "正在解析名单..." : "点击或拖入名单文件"}</p>
+              <p className="topbar-meta"><RobotOutlined /> 图片使用 Qwen；支持 CSV、Excel、Word .docx，确认无误后才创建账号</p>
+            </Upload.Dragger>
+          </Form.Item>
           <Form.Item name="roster" label="粘贴名单" rules={[{ required: true, message: "请粘贴名单" }]}>
             <Input.TextArea rows={8} placeholder={"每行一个学生，例如：\n20260001 张一\n20260002 张二"} />
           </Form.Item>
+          {recognizedRoster.length > 0 && <Table
+            size="small"
+            rowKey="studentNo"
+            pagination={{ pageSize: 5 }}
+            dataSource={recognizedRoster}
+            columns={[
+              { title: "学号", dataIndex: "studentNo" },
+              { title: "姓名", dataIndex: "name" },
+              { title: "置信度", dataIndex: "confidence", render: (value?: number) => value === undefined ? "-" : `${Math.round(value * 100)}%` },
+              { title: "问题", dataIndex: "issue", render: (value?: string) => value || "无" },
+            ]}
+          />}
         </Form>
       </Modal>
 
