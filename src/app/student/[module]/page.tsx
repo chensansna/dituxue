@@ -1,5 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { ModulePlaceholder } from "@/components/module-placeholder";
+import { StudentGradesDashboard } from "@/components/student-grades-dashboard";
+import { StudentSubmissionsDashboard } from "@/components/student-submissions-dashboard";
 import { requireRole } from "@/lib/auth";
 
 const names: Record<string, [string, string]> = {
@@ -11,10 +13,15 @@ export default async function Page({ params }: { params: Promise<{ module: strin
   const { module } = await params;
   const { profile } = await requireRole(["student"], `/student/${module}`);
   const [title, desc] = names[module] ?? ["学生模块", "查看个人作业数据。"];
+  const content = module === "submissions"
+    ? <StudentSubmissionsDashboard />
+    : module === "grades"
+      ? <StudentGradesDashboard />
+      : <ModulePlaceholder title={title} description={desc} role="学生" />;
 
   return (
     <AppShell role="student" title={title} subtitle="仅展示你的个人数据" userName={profile.display_name}>
-      <ModulePlaceholder title={title} description={desc} role="学生" />
+      {content}
     </AppShell>
   );
 }

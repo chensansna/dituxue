@@ -1,25 +1,127 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Space, Tag, Upload, message } from "antd";
-import { CheckCircleOutlined, ClockCircleOutlined, FilePdfOutlined, UploadOutlined } from "@ant-design/icons";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Button, Empty, message, Progress, Space, Tag, Upload } from "antd";
+import { CheckCircleOutlined, ClockCircleOutlined, UploadOutlined } from "@ant-design/icons";
+import { uploadSubmissionFile } from "@/lib/submission-upload";
 import { MetricGrid } from "./metric-grid";
-import { saveSubmissionFile } from "@/lib/browser-submissions";
 
-const works = [
-  { title:"专题地图设计：城市公共服务设施", state:"待修改", color:"orange", due:"延期至 06月18日 23:59", note:"教师反馈：请补充公共交通站点图例，并处理道路注记重叠。", action:"上传修改稿" },
-  { title:"地形图符号与注记配置", state:"可提交", color:"green", due:"截止 06月22日 23:59", note:"支持 PNG、JPG、PDF，文件不超过 50 MB。", action:"上传作业" },
-  { title:"分级统计图制作", state:"已评分", color:"green", due:"最终成绩 94 分", note:"审查已完成，教师反馈与详细评分已发布。", action:"查看反馈" },
-];
+type StudentAssignment = {
+  id: string;
+  title: string;
+  description: string;
+  className: string;
+  deadline: string;
+  extensionReason: string | null;
+  canSubmit: boolean;
+  submission: { status: string; returned_reason: string | null; teacher_feedback: string | null; current_version: number } | null;
+  grade: { final_score: number; feedback: string; published_at: string } | null;
+};
+
+const statusLabels: Record<string, string> = {
+  ai_processing: "AI 审查中",
+  ai_failed: "AI 审查失败",
+  pending_teacher_review: "待教师复评",
+  returned: "待修改",
+  reviewed: "复评完成",
+  graded: "已评分",
+};
 
 export function StudentDashboard() {
-  const [uploading,setUploading]=useState(false);
-  return <>
-    <div className="page-head"><div><h1>你好，林晓雨</h1><p>查看待提交任务、修改反馈和已经发布的成绩。</p></div></div>
-    <MetricGrid items={[{label:"待提交",value:1,note:"最近截止：06月22日"},{label:"待修改",value:1,note:"已获得个人延期"},{label:"已完成",value:3,note:"本学期共 5 次作业"},{label:"平均成绩",value:"92.5",note:"当前班级第 4 名"}]} />
-    <Alert message="有 1 份作业被退回修改" description="教师已为你延长提交时间，请在 06月18日 23:59 前提交新版本。" type="warning" showIcon style={{marginBottom:18}} />
-    <section className="panel"><div className="panel-head"><span className="panel-title">我的地图学作业</span><Tag color="green">地图学 2024-1班</Tag></div><div className="panel-body">
-      {works.map((work,i)=><div className="review-item" key={work.title}><div className="review-title"><span>{i===2?<CheckCircleOutlined />:<ClockCircleOutlined />} &nbsp;{work.title}</span><Tag color={work.color}>{work.state}</Tag></div><div className="review-copy">{work.due}<br />{work.note}</div><Space style={{marginTop:12}}>{i<2?<Upload accept=".png,.jpg,.jpeg,.pdf" showUploadList={false} beforeUpload={(file)=>{setUploading(true);void saveSubmissionFile(file).then(()=>message.success("文件已保存，教师端现在可以预览")).catch(()=>message.error("文件保存失败，请重试")).finally(()=>setUploading(false));return false;}}><Button type={i===0?"primary":"default"} loading={uploading} icon={<UploadOutlined />}>{work.action}</Button></Upload>:<Button>{work.action}</Button>}{i===0&&<Button icon={<FilePdfOutlined />}>查看退回原因</Button>}</Space></div>)}
-    </div></section>
-  </>;
+  const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/student/assignments");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "作业加载失败");
+      setAssignments(result.assignments);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "作业加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  async function upload(assignment: StudentAssignment, file: File) {
+    setLoadingId(assignment.id);
+    try {
+      await uploadSubmissionFile(assignment.id, file);
+      message.success("地图已上传，等待教师进行形式审查");
+      await load();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "上传失败");
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  const returned = assignments.filter((item) => item.submission?.status === "returned").length;
+  const pending = assignments.filter((item) => item.canSubmit && !item.submission).length;
+  const completed = assignments.filter((item) => item.grade).length;
+  const average = useMemo(() => {
+    const grades = assignments.flatMap((item) => item.grade ? [Number(item.grade.final_score)] : []);
+    return grades.length ? Math.round(grades.reduce((sum, score) => sum + score, 0) / grades.length * 10) / 10 : "未评分";
+  }, [assignments]);
+
+  return (
+    <>
+      <div className="page-head"><div><h1>我的地图学作业</h1><p>查看作业、上传地图、修改退回稿和查看已发布成绩。</p></div></div>
+      <MetricGrid items={[
+        { label: "待提交", value: pending, note: "尚未上传的作业" },
+        { label: "待修改", value: returned, note: "教师已退回" },
+        { label: "已评分", value: completed, note: "已发布成绩" },
+        { label: "平均成绩", value: average, note: "仅计算已发布成绩" },
+      ]} />
+      {returned > 0 && <Alert message={`有 ${returned} 份作业被退回修改`} description="请查看教师退回原因，并上传新的地图版本。" type="warning" showIcon style={{ marginBottom: 18 }} />}
+      <section className="panel">
+        <div className="panel-head"><span className="panel-title">可见作业</span><Tag color="green">Supabase 真实数据</Tag></div>
+        <div className="panel-body">
+          {loading && <Progress percent={40} status="active" showInfo={false} />}
+          {!loading && !assignments.length && <Empty description="当前没有已发布作业" />}
+          {assignments.map((assignment) => {
+            const state = assignment.grade ? "已评分" : assignment.submission ? statusLabels[assignment.submission.status] ?? assignment.submission.status : assignment.canSubmit ? "可提交" : "已截止";
+            const canUpload = assignment.canSubmit && (!assignment.submission || assignment.submission.status === "returned");
+            return (
+              <div className="review-item" key={assignment.id}>
+                <div className="review-title">
+                  <span>{assignment.grade ? <CheckCircleOutlined /> : <ClockCircleOutlined />} &nbsp;{assignment.title}</span>
+                  <Tag color={assignment.submission?.status === "returned" ? "orange" : assignment.grade ? "green" : "blue"}>{state}</Tag>
+                </div>
+                <div className="review-copy">
+                  {assignment.className} · 截止 {new Date(assignment.deadline).toLocaleString("zh-CN")}<br />
+                  {assignment.submission?.returned_reason || assignment.submission?.teacher_feedback || assignment.description || "请按要求提交地图文件。"}
+                </div>
+                {assignment.extensionReason && <Tag color="gold" style={{ marginTop: 8 }}>个人延期：{assignment.extensionReason}</Tag>}
+                <Space style={{ marginTop: 12 }}>
+                  {canUpload && (
+                    <Upload
+                      accept=".png,.jpg,.jpeg,.pdf"
+                      showUploadList={false}
+                      beforeUpload={(file) => {
+                        void upload(assignment, file);
+                        return false;
+                      }}
+                    >
+                      <Button type={assignment.submission?.status === "returned" ? "primary" : "default"} loading={loadingId === assignment.id} icon={<UploadOutlined />}>
+                        {assignment.submission?.status === "returned" ? "上传修改稿" : "上传作业"}
+                      </Button>
+                    </Upload>
+                  )}
+                </Space>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </>
+  );
 }
