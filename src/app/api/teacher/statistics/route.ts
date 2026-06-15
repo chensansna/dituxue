@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse, requireApiRole } from "@/lib/auth";
 import { listStatistics } from "@/lib/supabase/teacher-data";
 
 export async function GET() {
   try {
-    return NextResponse.json(await listStatistics());
+    const { user } = await requireApiRole(["teacher"]);
+    return NextResponse.json(await listStatistics(user.id));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load statistics." }, { status: 500 });
+    return authErrorResponse(error);
   }
 }

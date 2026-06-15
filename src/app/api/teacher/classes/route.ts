@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { authErrorResponse, requireApiRole } from "@/lib/auth";
 import { archiveClass, createClass, listClasses } from "@/lib/supabase/teacher-data";
 
 const createSchema = z.object({
@@ -9,27 +10,30 @@ const createSchema = z.object({
 
 export async function GET() {
   try {
-    return NextResponse.json({ classes: await listClasses() });
+    const { user } = await requireApiRole(["teacher"]);
+    return NextResponse.json({ classes: await listClasses(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load classes." }, { status: 500 });
+    return authErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    await createClass(createSchema.parse(await request.json()));
-    return NextResponse.json({ ok: true, classes: await listClasses() });
+    const { user } = await requireApiRole(["teacher"]);
+    await createClass(user.id, createSchema.parse(await request.json()));
+    return NextResponse.json({ ok: true, classes: await listClasses(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create class." }, { status: 400 });
+    return authErrorResponse(error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
+    const { user } = await requireApiRole(["teacher"]);
     const { id } = z.object({ id: z.string().uuid() }).parse(await request.json());
-    await archiveClass(id);
-    return NextResponse.json({ ok: true, classes: await listClasses() });
+    await archiveClass(user.id, id);
+    return NextResponse.json({ ok: true, classes: await listClasses(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to archive class." }, { status: 400 });
+    return authErrorResponse(error);
   }
 }

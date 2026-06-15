@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { authErrorResponse, requireApiRole } from "@/lib/auth";
 import { createAssignment, listAssignments } from "@/lib/supabase/teacher-data";
 
 const assignmentSchema = z.object({
@@ -12,17 +13,19 @@ const assignmentSchema = z.object({
 
 export async function GET() {
   try {
-    return NextResponse.json({ assignments: await listAssignments() });
+    const { user } = await requireApiRole(["teacher"]);
+    return NextResponse.json({ assignments: await listAssignments(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load assignments." }, { status: 500 });
+    return authErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    await createAssignment(assignmentSchema.parse(await request.json()));
-    return NextResponse.json({ ok: true, assignments: await listAssignments() });
+    const { user } = await requireApiRole(["teacher"]);
+    await createAssignment({ teacherId: user.id, ...assignmentSchema.parse(await request.json()) });
+    return NextResponse.json({ ok: true, assignments: await listAssignments(user.id) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create assignment." }, { status: 400 });
+    return authErrorResponse(error);
   }
 }

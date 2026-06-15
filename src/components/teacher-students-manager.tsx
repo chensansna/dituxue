@@ -252,7 +252,22 @@ export function TeacherStudentsManager() {
         </Form>
       </Modal>
 
-      <Modal title="初始密码仅显示这一次" open={credentials.length > 0} onCancel={() => setCredentials([])} footer={<Button type="primary" onClick={() => setCredentials([])}>我已保存</Button>}>
+      <Modal
+        title="初始密码仅显示这一次"
+        open={credentials.length > 0}
+        onCancel={() => setCredentials([])}
+        footer={(
+          <Space>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => downloadCsv("student-accounts.csv", [["学号", "姓名", "初始密码"], ...credentials.map((item) => [item.studentNo, item.name, item.password])])}
+            >
+              导出 CSV
+            </Button>
+            <Button type="primary" onClick={() => setCredentials([])}>我已保存</Button>
+          </Space>
+        )}
+      >
         <Table size="small" rowKey="studentNo" pagination={false} dataSource={credentials} columns={[{ title: "学号", dataIndex: "studentNo" }, { title: "姓名", dataIndex: "name" }, { title: "初始密码", dataIndex: "password" }]} />
       </Modal>
     </>

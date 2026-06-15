@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { studentEmail } from "@/lib/auth";
 import { createSupabaseAdminClient } from "./admin";
 
 export type TeacherClass = {
@@ -34,13 +35,6 @@ export type TeacherAssignment = {
   createdAt: string;
 };
 
-const teacherEmail = process.env.DEMO_TEACHER_EMAIL ?? "teacher@dituxue.local";
-const teacherPassword = process.env.DEMO_TEACHER_PASSWORD ?? "Demo@2026-dituxue";
-
-function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
-
 function initialPassword() {
   return `Map@${randomBytes(6).toString("base64url")}`;
 }
@@ -55,31 +49,6 @@ async function findUserByEmail(email: string) {
     if (data.users.length < 100) return null;
   }
   return null;
-}
-
-export async function ensureDemoTeacher() {
-  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured.");
-  const admin = createSupabaseAdminClient();
-  let user = await findUserByEmail(teacherEmail);
-  if (!user) {
-    const created = await admin.auth.admin.createUser({
-      email: teacherEmail,
-      password: teacherPassword,
-      email_confirm: true,
-      user_metadata: { display_name: "王静怡老师" },
-    });
-    if (created.error || !created.data.user) throw created.error ?? new Error("Failed to create demo teacher.");
-    user = created.data.user;
-  }
-
-  const { error } = await admin.from("profiles").upsert({
-    id: user.id,
-    role: "teacher",
-    display_name: "王静怡老师",
-    must_change_password: false,
-  });
-  if (error) throw error;
-  return user.id;
 }
 
 async function ensureDefaultClass(teacherId: string) {
@@ -100,14 +69,12 @@ async function ensureDefaultClass(teacherId: string) {
   if (inserted.error) throw inserted.error;
 }
 
-export async function ensureTeacherWorkspace() {
-  const teacherId = await ensureDemoTeacher();
+export async function ensureTeacherWorkspace(teacherId: string) {
   await ensureDefaultClass(teacherId);
-  return teacherId;
 }
 
-export async function listClasses(): Promise<TeacherClass[]> {
-  const teacherId = await ensureTeacherWorkspace();
+export async function listClasses(teacherId: string): Promise<TeacherClass[]> {
+  await ensureTeacherWorkspace(teacherId);
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("classes")
@@ -125,8 +92,8 @@ export async function listClasses(): Promise<TeacherClass[]> {
   }));
 }
 
-export async function createClass(input: { name: string; term?: string }) {
-  const teacherId = await ensureTeacherWorkspace();
+export async function createClass(teacherId: string, input: { name: string; term?: string }) {
+  await ensureTeacherWorkspace(teacherId);
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("classes").insert({
     teacher_id: teacherId,
@@ -136,14 +103,14 @@ export async function createClass(input: { name: string; term?: string }) {
   if (error) throw error;
 }
 
-export async function archiveClass(classId: string) {
+export async function archiveClass(teacherId: string, classId: string) {
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("classes").update({ deleted_at: new Date().toISOString() }).eq("id", classId);
+  const { error } = await admin.from("classes").update({ deleted_at: new Date().toISOString() }).eq("id", classId).eq("teacher_id", teacherId);
   if (error) throw error;
 }
 
-export async function listStudents(): Promise<TeacherStudent[]> {
-  const classes = await listClasses();
+export async function listStudents(teacherId: string): Promise<TeacherStudent[]> {
+  const classes = await listClasses(teacherId);
   const classMap = new Map(classes.map((item) => [item.id, item.name]));
   const admin = createSupabaseAdminClient();
   const classIds = classes.map((item) => item.id);
@@ -202,10 +169,11 @@ export async function listStudents(): Promise<TeacherStudent[]> {
     .sort((a, b) => a.studentNo.localeCompare(b.studentNo));
 }
 
-export async function addStudent(input: { classId: string; studentNo: string; name: string }) {
-  await ensureTeacherWorkspace();
+export async function addStudent(teacherId: string, input: { classId: string; studentNo: string; name: string }) {
+  const classes = await listClasses(teacherId);
+  if (!classes.some((item) => item.id === input.classId)) throw new Error("班级不属于当前教师");
   const admin = createSupabaseAdminClient();
-  const email = `${input.studentNo}@students.dituxue.local`;
+  const email = studentEmail(input.studentNo);
   let user = await findUserByEmail(email);
   const password = initialPassword();
   if (!user) {
@@ -217,6 +185,12 @@ export async function addStudent(input: { classId: string; studentNo: string; na
     });
     if (created.error || !created.data.user) throw created.error ?? new Error("Failed to create student.");
     user = created.data.user;
+  } else {
+    const updated = await admin.auth.admin.updateUserById(user.id, {
+      password,
+      user_metadata: { display_name: input.name, student_no: input.studentNo },
+    });
+    if (updated.error) throw updated.error;
   }
   const profile = await admin.from("profiles").upsert({
     id: user.id,
@@ -232,14 +206,16 @@ export async function addStudent(input: { classId: string; studentNo: string; na
   return { studentNo: input.studentNo, name: input.name, password };
 }
 
-export async function disableStudent(studentId: string) {
+export async function disableStudent(teacherId: string, studentId: string) {
+  const students = await listStudents(teacherId);
+  if (!students.some((item) => item.id === studentId)) throw new Error("学生不属于当前教师");
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("profiles").update({ disabled_at: new Date().toISOString() }).eq("id", studentId);
   if (error) throw error;
 }
 
-export async function listAssignments(): Promise<TeacherAssignment[]> {
-  const classes = await listClasses();
+export async function listAssignments(teacherId: string): Promise<TeacherAssignment[]> {
+  const classes = await listClasses(teacherId);
   const classMap = new Map(classes.map((item) => [item.id, item.name]));
   const admin = createSupabaseAdminClient();
   const classIds = classes.map((item) => item.id);
@@ -269,13 +245,16 @@ export async function listAssignments(): Promise<TeacherAssignment[]> {
 }
 
 export async function createAssignment(input: {
+  teacherId: string;
   title: string;
   description?: string;
   classIds: string[];
   status: "draft" | "published";
   deadline?: string | null;
 }) {
-  await ensureTeacherWorkspace();
+  const classes = await listClasses(input.teacherId);
+  const allowed = new Set(classes.map((item) => item.id));
+  if (input.classIds.some((classId) => !allowed.has(classId))) throw new Error("存在不属于当前教师的班级");
   const admin = createSupabaseAdminClient();
   const deadline = input.deadline ?? "2099-12-31T15:59:59.000Z";
   const rows = input.classIds.map((classId) => ({
@@ -290,8 +269,8 @@ export async function createAssignment(input: {
   if (error) throw error;
 }
 
-export async function listStatistics() {
-  const [classes, students, assignments] = await Promise.all([listClasses(), listStudents(), listAssignments()]);
+export async function listStatistics(teacherId: string) {
+  const [classes, students, assignments] = await Promise.all([listClasses(teacherId), listStudents(teacherId), listAssignments(teacherId)]);
   const ranked = [...students]
     .filter((student) => student.averageScore !== null)
     .sort((a, b) => (b.averageScore ?? 0) - (a.averageScore ?? 0))
