@@ -35,6 +35,20 @@ export type TeacherAssignment = {
   createdAt: string;
 };
 
+export type TeacherOverview = {
+  classCount: number;
+  studentCount: number;
+  assignmentCount: number;
+  publishedAssignmentCount: number;
+  pendingReviewCount: number;
+  aiFailedCount: number;
+  returnedCount: number;
+  gradedCount: number;
+  averageScore: number | null;
+  assignments: TeacherAssignment[];
+  students: TeacherStudent[];
+};
+
 function initialPassword() {
   return `Map@${randomBytes(6).toString("base64url")}`;
 }
@@ -51,30 +65,7 @@ async function findUserByEmail(email: string) {
   return null;
 }
 
-async function ensureDefaultClass(teacherId: string) {
-  const admin = createSupabaseAdminClient();
-  const { data, error } = await admin
-    .from("classes")
-    .select("id")
-    .eq("teacher_id", teacherId)
-    .is("deleted_at", null)
-    .limit(1);
-  if (error) throw error;
-  if (data.length) return;
-  const inserted = await admin.from("classes").insert({
-    teacher_id: teacherId,
-    name: "地图学 2024-1班",
-    term: "2025-2026 第二学期",
-  });
-  if (inserted.error) throw inserted.error;
-}
-
-export async function ensureTeacherWorkspace(teacherId: string) {
-  await ensureDefaultClass(teacherId);
-}
-
 export async function listClasses(teacherId: string): Promise<TeacherClass[]> {
-  await ensureTeacherWorkspace(teacherId);
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("classes")
@@ -93,7 +84,6 @@ export async function listClasses(teacherId: string): Promise<TeacherClass[]> {
 }
 
 export async function createClass(teacherId: string, input: { name: string; term?: string }) {
-  await ensureTeacherWorkspace(teacherId);
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("classes").insert({
     teacher_id: teacherId,
@@ -290,5 +280,35 @@ export async function listStatistics(teacherId: string) {
       averageScore: average,
       gradedStudentCount: ranked.length,
     },
+  };
+}
+
+export async function getTeacherOverview(teacherId: string): Promise<TeacherOverview> {
+  const [classes, students, assignments] = await Promise.all([listClasses(teacherId), listStudents(teacherId), listAssignments(teacherId)]);
+  const admin = createSupabaseAdminClient();
+  const assignmentIds = assignments.map((assignment) => assignment.id);
+  const { data: submissions, error } = assignmentIds.length
+    ? await admin.from("submissions").select("status,grades(final_score,published_at)").in("assignment_id", assignmentIds).is("deleted_at", null)
+    : { data: [], error: null };
+  if (error) throw error;
+
+  const publishedScores: number[] = [];
+  for (const submission of submissions ?? []) {
+    const grade = Array.isArray(submission.grades) ? submission.grades[0] : submission.grades;
+    if (grade?.published_at && grade.final_score !== null && grade.final_score !== undefined) publishedScores.push(Number(grade.final_score));
+  }
+
+  return {
+    classCount: classes.length,
+    studentCount: students.length,
+    assignmentCount: assignments.length,
+    publishedAssignmentCount: assignments.filter((assignment) => assignment.status === "published").length,
+    pendingReviewCount: (submissions ?? []).filter((submission) => submission.status === "pending_teacher_review").length,
+    aiFailedCount: (submissions ?? []).filter((submission) => submission.status === "ai_failed").length,
+    returnedCount: (submissions ?? []).filter((submission) => submission.status === "returned").length,
+    gradedCount: publishedScores.length,
+    averageScore: publishedScores.length ? Math.round((publishedScores.reduce((sum, score) => sum + score, 0) / publishedScores.length) * 10) / 10 : null,
+    assignments: assignments.slice(0, 5),
+    students: students.slice(0, 8),
   };
 }
