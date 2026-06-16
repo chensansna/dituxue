@@ -32,16 +32,6 @@ type RoleKey = "admin" | "teacher" | "student";
 type ProfileSkin = {
   displayName: string;
   honorific: string;
-  avatarColor: string;
-  themeMode: "light" | "dark";
-  themeColor: "green" | "blue" | "purple" | "slate";
-};
-
-const colorMap: Record<ProfileSkin["themeColor"], { brand: string; dark: string; accent: string }> = {
-  green: { brand: "#0f7a56", dark: "#083927", accent: "#1fa477" },
-  blue: { brand: "#2563eb", dark: "#172554", accent: "#38bdf8" },
-  purple: { brand: "#7c3aed", dark: "#2e1065", accent: "#c084fc" },
-  slate: { brand: "#334155", dark: "#0f172a", accent: "#64748b" },
 };
 
 const roleConfig = {
@@ -79,16 +69,6 @@ const roleConfig = {
   },
 };
 
-function applySkin(skin: Pick<ProfileSkin, "themeMode" | "themeColor">) {
-  const root = document.documentElement;
-  const colors = colorMap[skin.themeColor] ?? colorMap.green;
-  root.dataset.theme = skin.themeMode;
-  root.dataset.color = skin.themeColor;
-  root.style.setProperty("--brand", colors.brand);
-  root.style.setProperty("--brand-dark", colors.dark);
-  root.style.setProperty("--brand-2", colors.accent);
-}
-
 export function AppShell({
   role,
   children,
@@ -107,9 +87,6 @@ export function AppShell({
   const [profileSkin, setProfileSkin] = useState<ProfileSkin>({
     displayName: userName ?? config.name,
     honorific: "",
-    avatarColor: "#176b4d",
-    themeMode: "light",
-    themeColor: "green",
   });
   const displayName = profileSkin.displayName || userName || config.name;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -124,14 +101,10 @@ export function AppShell({
       const nextSkin: ProfileSkin = {
         displayName: result.profile.displayName ?? userName ?? config.name,
         honorific: result.profile.honorific ?? "",
-        avatarColor: result.profile.avatarColor ?? "#176b4d",
-        themeMode: result.profile.themeMode ?? "light",
-        themeColor: result.profile.themeColor ?? "green",
       };
       setProfileSkin(nextSkin);
-      applySkin(nextSkin);
     } catch {
-      // Settings are cosmetic; failing to load them should not block the workspace.
+      // Cosmetic profile data should not block the workspace.
     }
   }, [config.name, userName]);
 
@@ -218,7 +191,7 @@ export function AppShell({
                 </Badge>
               </button>
             </Popover>
-            <Avatar style={{ background: profileSkin.avatarColor }}>{displayName.slice(0, 1)}</Avatar>
+            <Avatar style={{ background: "#176b4d" }}>{displayName.slice(0, 1)}</Avatar>
             <span className="topbar-meta">{profileSkin.honorific || displayName}</span>
           </Space>
         </header>

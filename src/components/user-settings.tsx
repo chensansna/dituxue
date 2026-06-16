@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Card, Form, Input, message, Modal, Radio, Select, Space, Tabs, Tag } from "antd";
+import { Avatar, Button, Card, Form, Input, message, Modal, Select, Space, Tabs, Tag } from "antd";
 import { LockOutlined, ReloadOutlined, SaveOutlined, UserOutlined } from "@ant-design/icons";
 
 type UserRole = "teacher" | "student";
@@ -12,6 +12,11 @@ type ProfileSettings = {
   avatarColor: string;
   themeMode: "light" | "dark";
   themeColor: "green" | "blue" | "purple" | "slate";
+};
+
+type ProfileFormValues = {
+  displayName: string;
+  honorific: string;
 };
 
 type StudentItem = {
@@ -28,33 +33,27 @@ type Credential = {
   password: string;
 };
 
-const avatarColors = ["#176b4d", "#2563eb", "#7c3aed", "#334155", "#d97706", "#dc2626"];
-const themeOptions = [
-  { label: "地图绿", value: "green" },
-  { label: "蓝色", value: "blue" },
-  { label: "紫色", value: "purple" },
-  { label: "灰黑", value: "slate" },
-];
+const defaultProfile: ProfileSettings = {
+  displayName: "",
+  honorific: "",
+  avatarColor: "#176b4d",
+  themeMode: "light",
+  themeColor: "green",
+};
 
 export function UserSettings({ role }: { role: UserRole }) {
-  const [profileForm] = Form.useForm<ProfileSettings>();
+  const [profileForm] = Form.useForm<ProfileFormValues>();
   const [passwordForm] = Form.useForm<{ password: string; confirm: string }>();
   const [studentForm] = Form.useForm<{ studentId: string }>();
+  const [profile, setProfile] = useState<ProfileSettings>(defaultProfile);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [credential, setCredential] = useState<Credential | null>(null);
-  const [preview, setPreview] = useState<ProfileSettings>({
-    displayName: "",
-    honorific: "",
-    avatarColor: "#176b4d",
-    themeMode: "light",
-    themeColor: "green",
-  });
 
-  const initials = useMemo(() => (preview.displayName || "用户").slice(0, 1), [preview.displayName]);
+  const initials = useMemo(() => (profile.displayName || "用户").slice(0, 1), [profile.displayName]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -62,15 +61,18 @@ export function UserSettings({ role }: { role: UserRole }) {
       const response = await fetch("/api/profile/settings", { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "设置加载失败");
-      const profile: ProfileSettings = {
+      const nextProfile: ProfileSettings = {
         displayName: result.profile.displayName,
         honorific: result.profile.honorific ?? "",
-        avatarColor: result.profile.avatarColor ?? "#176b4d",
-        themeMode: result.profile.themeMode ?? "light",
-        themeColor: result.profile.themeColor ?? "green",
+        avatarColor: result.profile.avatarColor ?? defaultProfile.avatarColor,
+        themeMode: result.profile.themeMode ?? defaultProfile.themeMode,
+        themeColor: result.profile.themeColor ?? defaultProfile.themeColor,
       };
-      profileForm.setFieldsValue(profile);
-      setPreview(profile);
+      setProfile(nextProfile);
+      profileForm.setFieldsValue({
+        displayName: nextProfile.displayName,
+        honorific: nextProfile.honorific,
+      });
     } catch (error) {
       message.error(error instanceof Error ? error.message : "设置加载失败");
     } finally {
@@ -98,17 +100,26 @@ export function UserSettings({ role }: { role: UserRole }) {
     return () => window.clearTimeout(timer);
   }, [loadSettings, loadStudents]);
 
-  async function saveProfile(values: ProfileSettings) {
+  async function saveProfile(values: ProfileFormValues) {
+    const payload: ProfileSettings = {
+      ...profile,
+      displayName: values.displayName,
+      honorific: values.honorific ?? "",
+      avatarColor: defaultProfile.avatarColor,
+      themeMode: defaultProfile.themeMode,
+      themeColor: defaultProfile.themeColor,
+    };
     setSavingProfile(true);
     try {
       const response = await fetch("/api/profile/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "保存失败");
-      message.success("个人设置已保存");
+      setProfile(payload);
+      message.success("个人信息已保存");
       window.dispatchEvent(new CustomEvent("profile-settings-updated"));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "保存失败");
@@ -165,7 +176,7 @@ export function UserSettings({ role }: { role: UserRole }) {
       <div className="page-head">
         <div>
           <h1>{role === "teacher" ? "教师端设置" : "学生端设置"}</h1>
-          <p>管理账号安全、基础头像和界面主题；设置会保存到 Supabase。</p>
+          <p>管理个人信息和账号安全；设置会保存到 Supabase。</p>
         </div>
       </div>
 
@@ -177,17 +188,19 @@ export function UserSettings({ role }: { role: UserRole }) {
             label: "个人信息",
             children: (
               <Card className="settings-card" loading={loading}>
-                <div className="settings-profile-preview">
-                  <Avatar size={72} style={{ background: preview.avatarColor }}>{initials}</Avatar>
+                <div className="settings-profile-preview is-simple">
+                  <Avatar size={64} style={{ background: "#176b4d" }}>{initials}</Avatar>
                   <div>
-                    <h2>{preview.displayName || "未命名用户"}</h2>
-                    <p>{role === "teacher" ? preview.honorific || "教师" : "学生"}</p>
+                    <h2>{profile.displayName || "未命名用户"}</h2>
+                    <p>{role === "teacher" ? profile.honorific || "教师" : "学生"}</p>
                   </div>
                 </div>
                 <Form
                   form={profileForm}
                   layout="vertical"
-                  onValuesChange={(_, values) => setPreview((current) => ({ ...current, ...values }))}
+                  onValuesChange={(_, values) => {
+                    setProfile((current) => ({ ...current, ...values }));
+                  }}
                   onFinish={(values) => void saveProfile(values)}
                 >
                   <Form.Item name="displayName" label={role === "teacher" ? "姓名" : "昵称"} rules={[{ required: true, message: "请输入名称" }]}>
@@ -198,22 +211,7 @@ export function UserSettings({ role }: { role: UserRole }) {
                       <Input size="large" placeholder="例如：李老师、王静怡老师" />
                     </Form.Item>
                   )}
-                  <Form.Item name="avatarColor" label="基础头像颜色">
-                    <Radio.Group className="avatar-color-grid">
-                      {avatarColors.map((color) => (
-                        <Radio.Button value={color} key={color} aria-label={color}>
-                          <span style={{ background: color }} />
-                        </Radio.Button>
-                      ))}
-                    </Radio.Group>
-                  </Form.Item>
-                  <Form.Item name="themeMode" label="显示模式">
-                    <Radio.Group buttonStyle="solid" options={[{ label: "浅色", value: "light" }, { label: "深色", value: "dark" }]} />
-                  </Form.Item>
-                  <Form.Item name="themeColor" label="界面主色">
-                    <Select size="large" options={themeOptions} />
-                  </Form.Item>
-                  <Button type="primary" size="large" htmlType="submit" icon={<SaveOutlined />} loading={savingProfile}>保存个人设置</Button>
+                  <Button type="primary" size="large" htmlType="submit" icon={<SaveOutlined />} loading={savingProfile}>保存个人信息</Button>
                 </Form>
               </Card>
             ),
