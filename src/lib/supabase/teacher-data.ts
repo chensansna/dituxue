@@ -294,6 +294,36 @@ export async function archiveAssignment(teacherId: string, assignmentId: string)
 
 export async function listStatistics(teacherId: string) {
   const [classes, students, assignments] = await Promise.all([listClasses(teacherId), listStudents(teacherId), listAssignments(teacherId)]);
+  const admin = createSupabaseAdminClient();
+  const assignmentIds = assignments.map((assignment) => assignment.id);
+  const studentMap = new Map(students.map((student) => [student.id, student]));
+  const assignmentMap = new Map(assignments.map((assignment) => [assignment.id, assignment]));
+  const { data: submissions, error } = assignmentIds.length
+    ? await admin
+      .from("submissions")
+      .select("student_id,assignment_id,grades(final_score,published_at)")
+      .in("assignment_id", assignmentIds)
+      .is("deleted_at", null)
+    : { data: [], error: null };
+  if (error) throw error;
+  const scoreRecords = (submissions ?? []).flatMap((submission) => {
+    const grade = Array.isArray(submission.grades) ? submission.grades[0] : submission.grades;
+    if (grade?.final_score === undefined || grade?.final_score === null) return [];
+    const student = studentMap.get(submission.student_id);
+    const assignment = assignmentMap.get(submission.assignment_id);
+    if (!student || !assignment) return [];
+    return [{
+      studentId: student.id,
+      studentNo: student.studentNo,
+      name: student.name,
+      classId: student.classId,
+      className: student.className,
+      assignmentId: assignment.id,
+      assignmentTitle: assignment.title,
+      score: Number(grade.final_score),
+      publishedAt: grade.published_at,
+    }];
+  });
   const ranked = [...students]
     .filter((student) => student.averageScore !== null)
     .sort((a, b) => (b.averageScore ?? 0) - (a.averageScore ?? 0))
@@ -305,6 +335,7 @@ export async function listStatistics(teacherId: string) {
     classes,
     students,
     assignments,
+    scoreRecords,
     ranked,
     summary: {
       classCount: classes.length,

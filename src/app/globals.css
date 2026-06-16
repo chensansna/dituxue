@@ -112,6 +112,8 @@ a { color: inherit; text-decoration: none; }
 .class-card span { color:var(--muted); font-size:12px; }
 .class-card-select { display:grid; gap:7px; width:100%; padding:0; border:0; background:transparent; text-align:left; cursor:pointer; color:inherit; }
 .stats-chart { min-height:320px; }
+.stats-filter-bar { display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)); gap:12px; align-items:center; }
+.stats-filter-bar .ant-select { width:100%; }
 
 @media (max-width: 900px) {
   .app-sider { display:none; }
@@ -138,6 +140,7 @@ a { color: inherit; text-decoration: none; }
   .formal-check-card .ant-select { grid-column:1/-1; width:100%; }
   .directory-toolbar { flex-direction:column; align-items:stretch; }
   .directory-toolbar .ant-input-affix-wrapper, .directory-toolbar .ant-select { max-width:none; width:100%; }
+  .stats-filter-bar { grid-template-columns:1fr; }
 }
 
 /* Spatial teaching workspace visual refresh */
