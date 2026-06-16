@@ -18,6 +18,16 @@ function StatusTag({ configured }: { configured: boolean }) {
   return <Tag color={configured ? "green" : "red"}>{configured ? "已配置" : "未配置"}</Tag>;
 }
 
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text.trim()) throw new Error(response.ok ? "接口没有返回内容" : `接口请求失败（${response.status}）`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`接口返回的不是 JSON（${response.status}）`);
+  }
+}
+
 export function AdminSettings({ status }: { status: SettingsStatus }) {
   const [testing, setTesting] = useState(false);
 
@@ -25,7 +35,7 @@ export function AdminSettings({ status }: { status: SettingsStatus }) {
     setTesting(true);
     try {
       const response = await fetch("/api/qwen/health", { cache: "no-store" });
-      const result = await response.json();
+      const result = await readJsonResponse(response);
       if (!response.ok) throw new Error(result.error ?? "Qwen 连接失败");
       message.success(`Qwen 连接正常，当前模型：${result.model}`);
     } catch (error) {

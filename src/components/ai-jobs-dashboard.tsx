@@ -18,6 +18,16 @@ function formatDuration(durationMs: number) {
   return `${(durationMs / 1000).toFixed(1)} 秒`;
 }
 
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text.trim()) throw new Error(response.ok ? "接口没有返回内容" : `接口请求失败（${response.status}）`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`接口返回的不是 JSON（${response.status}）`);
+  }
+}
+
 export function AiJobsDashboard() {
   const [jobs, setJobs] = useState<AiJobLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +38,7 @@ export function AiJobsDashboard() {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/ai-jobs", { cache: "no-store" });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
       if (!response.ok) throw new Error(data.error);
       setJobs(data.jobs);
     } catch (error) {
@@ -40,7 +50,7 @@ export function AiJobsDashboard() {
 
   useEffect(() => {
     void fetch("/api/admin/ai-jobs", { cache: "no-store" })
-      .then((response) => response.json())
+      .then(readJsonResponse)
       .then((data) => setJobs(data.jobs ?? []))
       .finally(() => setLoading(false));
   }, []);
@@ -59,7 +69,7 @@ export function AiJobsDashboard() {
     const hide = message.loading("正在调用 Qwen 检查连接...", 0);
     try {
       const response = await fetch("/api/qwen/health");
-      const result = await response.json();
+      const result = await readJsonResponse(response);
       if (!response.ok) throw new Error(result.error);
       message.success(`Qwen 连接正常，模型：${result.model}`);
       await loadJobs();
@@ -96,7 +106,7 @@ export function AiJobsDashboard() {
       { label: "成功率", value: successRate, note: "包含连接检查与审查任务" },
       { label: "平均耗时", value: averageDuration, note: "从请求发起到结果返回" },
     ]} />
-    <Alert type="info" showIcon message="当前使用本机日志存储" description="本地开发环境可以正常使用；部署到 Vercel 后应将日志写入 Supabase 的 ai_jobs 表，避免无状态实例丢失记录。" style={{ marginBottom: 18 }} />
+    <Alert type="success" showIcon message="当前使用 Supabase 记录 AI 调用" description="连接检查、形式审查和失败原因会写入 ai_jobs 表，刷新页面或更换设备后仍可查看。" style={{ marginBottom: 18 }} />
     <section className="panel">
       <div className="panel-head">
         <Space wrap>

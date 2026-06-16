@@ -6,9 +6,9 @@ import { authErrorResponse, HttpError, requireApiRole } from "@/lib/auth";
 export async function GET() {
   const startedAt = Date.now();
   try {
-    await requireApiRole(["admin"]);
+    const session = await requireApiRole(["admin"]);
     const result = await checkQwenConnection();
-    await recordAiJob({ type: "connection_check", status: "completed", model: result.model, durationMs: Date.now() - startedAt, itemCount: 1 });
+    await recordAiJob({ type: "connection_check", status: "completed", model: result.model, durationMs: Date.now() - startedAt, itemCount: 1, requestedBy: session.user.id });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof HttpError) {
