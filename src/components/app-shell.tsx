@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Avatar, Badge, Button, Layout, Menu, Space, Tag } from "antd";
+import { Avatar, Badge, Button, Empty, Layout, List, Menu, Popover, Space, Tag } from "antd";
 import {
   ApartmentOutlined,
   AuditOutlined,
@@ -17,6 +18,14 @@ import {
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
+
+type AppNotification = {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  tone: "info" | "warning" | "danger" | "success";
+};
 
 const roleConfig = {
   teacher: {
@@ -67,11 +76,49 @@ export function AppShell({
   const pathname = usePathname();
   const config = roleConfig[role];
   const displayName = userName ?? config.name;
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
+  async function loadNotifications() {
+    setNotificationLoading(true);
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const result = await response.json();
+      if (response.ok) setNotifications(result.notifications ?? []);
+    } finally {
+      setNotificationLoading(false);
+    }
+  }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/";
   }
+
+  const notificationPanel = (
+    <div className="notification-panel">
+      <div className="notification-head">
+        <b>通知中心</b>
+        <Button type="link" size="small" loading={notificationLoading} onClick={() => void loadNotifications()}>刷新</Button>
+      </div>
+      {notifications.length ? (
+        <List
+          dataSource={notifications}
+          renderItem={(item) => (
+            <List.Item className={`notification-item is-${item.tone}`}>
+              <Link href={item.href} onClick={() => setNotificationOpen(false)}>
+                <b>{item.title}</b>
+                <p>{item.description}</p>
+              </Link>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理事项" />
+      )}
+    </div>
+  );
 
   return (
     <Layout className="app-shell">
@@ -90,7 +137,22 @@ export function AppShell({
           <div><div className="topbar-title">{title}</div><div className="topbar-meta">{subtitle}</div></div>
           <Space size={16}>
             <Tag color="green">Qwen 服务正常</Tag>
-            <Badge dot><BellOutlined style={{ fontSize: 18 }} /></Badge>
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              open={notificationOpen}
+              onOpenChange={(open) => {
+                setNotificationOpen(open);
+                if (open) void loadNotifications();
+              }}
+              content={notificationPanel}
+            >
+              <button className="notification-button" type="button" aria-label="打开通知中心">
+                <Badge count={notifications.length} size="small">
+                  <BellOutlined style={{ fontSize: 18 }} />
+                </Badge>
+              </button>
+            </Popover>
             <Avatar style={{ background: "#176b4d" }}>{displayName.slice(0, 1)}</Avatar>
             <span className="topbar-meta">{displayName}</span>
           </Space>
