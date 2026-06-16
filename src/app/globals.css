@@ -152,8 +152,8 @@ a { color: inherit; text-decoration: none; }
   --surface: rgba(255, 255, 255, .9);
   --surface-solid: #ffffff;
   --radius: 18px;
-  --shadow-soft: 0 20px 60px rgba(16, 42, 31, .1);
-  --shadow-card: 0 12px 34px rgba(21, 67, 48, .08);
+  --shadow-soft: 0 18px 44px rgba(16, 42, 31, .09);
+  --shadow-card: 0 10px 24px rgba(21, 67, 48, .06);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
 }
 
@@ -192,7 +192,7 @@ body::before {
     radial-gradient(circle at 22% 4%, rgba(53, 196, 143, .28), transparent 13rem),
     radial-gradient(circle at 110% 44%, rgba(77, 143, 216, .18), transparent 14rem),
     linear-gradient(180deg, #0b3425 0%, #08251b 54%, #061a14 100%) !important;
-  box-shadow: 18px 0 50px rgba(5, 28, 20, .18);
+  box-shadow: 12px 0 34px rgba(5, 28, 20, .14);
   overflow: hidden;
 }
 
@@ -265,7 +265,7 @@ body::before {
   border-radius: 14px;
   border-color: rgba(255,255,255,.34) !important;
   background: rgba(255,255,255,.06);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(6px);
   transition: transform .25s var(--ease-out), background .25s var(--ease-out);
 }
 
@@ -282,8 +282,8 @@ body::before {
   height: 74px;
   background: rgba(247, 251, 248, .78);
   border-bottom: 1px solid rgba(13, 77, 55, .09);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(135%);
+  -webkit-backdrop-filter: blur(10px) saturate(135%);
 }
 
 .topbar-title {
@@ -303,7 +303,7 @@ body::before {
 }
 
 .content {
-  animation: page-rise .58s var(--ease-out) both;
+  animation: none;
 }
 
 .page-head {
@@ -332,8 +332,8 @@ body::before {
   border-color: rgba(13, 77, 55, .1);
   background: var(--surface);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: transform .32s var(--ease-out), box-shadow .32s var(--ease-out), border-color .32s var(--ease-out);
 }
 
@@ -360,15 +360,15 @@ body::before {
 .panel:hover,
 .review-score-card:hover,
 .class-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   border-color: rgba(15, 122, 86, .22);
-  box-shadow: 0 22px 55px rgba(16, 42, 31, .13);
+  box-shadow: 0 16px 34px rgba(16, 42, 31, .1);
 }
 
 .metric {
   min-height: 124px;
   padding: 20px;
-  animation: card-enter .5s var(--ease-out) both;
+  animation: card-enter .28s var(--ease-out) both;
 }
 
 .metric:nth-child(2) { animation-delay: .05s; }
@@ -540,7 +540,7 @@ textarea.ant-input {
 .map-file-toolbar {
   min-height: 52px;
   background: rgba(255,255,255,.86);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(6px);
 }
 
 .map-image-preview {
