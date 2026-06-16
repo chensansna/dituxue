@@ -65,7 +65,7 @@ async function getAssignmentContext(assignmentId: string) {
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("assignments")
-    .select("id,title,status,deadline,class_id,classes(id,name,teacher_id)")
+    .select("id,title,description,status,deadline,class_id,classes(id,name,teacher_id)")
     .eq("id", assignmentId)
     .is("deleted_at", null)
     .single();
@@ -83,7 +83,7 @@ async function ensureSubmissionAccess(actor: Actor, submissionId: string) {
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("submissions")
-    .select("id,assignment_id,student_id,status,current_version,assignments(id,title,class_id,classes(id,name,teacher_id)),profiles!submissions_student_id_fkey(id,display_name,student_no)")
+    .select("id,assignment_id,student_id,status,current_version,assignments(id,title,description,class_id,classes(id,name,teacher_id)),profiles!submissions_student_id_fkey(id,display_name,student_no)")
     .eq("id", submissionId)
     .is("deleted_at", null)
     .single();
@@ -280,7 +280,7 @@ export async function listTeacherReviewQueue(teacherId: string) {
   const assignmentIds = (assignmentRows ?? []).map((item) => item.id);
   if (!assignmentIds.length) return [];
   const { data, error } = await admin.from("submissions")
-    .select("id,status,current_version,updated_at,student_id,profiles!submissions_student_id_fkey(display_name,student_no),assignments(id,title,class_id),submission_versions(id,version_no,files(id,original_name,mime_type),review_results(id))")
+    .select("id,status,current_version,updated_at,student_id,profiles!submissions_student_id_fkey(display_name,student_no),assignments(id,title,description,class_id),submission_versions(id,version_no,files(id,original_name,mime_type),review_results(id))")
     .in("assignment_id", assignmentIds)
     .is("deleted_at", null).order("updated_at", { ascending: false });
   if (error) throw error;
@@ -350,7 +350,14 @@ export async function runTeacherAiReview(teacherId: string, submissionId: string
   }).select("id").single();
   if (jobError || !job) throw jobError ?? new Error("创建 AI 任务失败");
   try {
-    const result = reviewResultSchema.parse(await reviewMap(imageForReview, FORMAL_CHECKS.map((item) => ({ ...item }))));
+    const result = reviewResultSchema.parse(await reviewMap(
+      imageForReview,
+      FORMAL_CHECKS.map((item) => ({ ...item })),
+      {
+        title: detail.submission.assignment?.title,
+        description: detail.submission.assignment?.description,
+      },
+    ));
     const { data: review, error } = await admin.from("review_results").upsert({
       version_id: latest.id,
       ai_job_id: job.id,

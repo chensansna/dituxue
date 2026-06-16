@@ -9,6 +9,7 @@ import { MapFilePreview } from "./map-file-preview";
 
 type ReviewResult = z.infer<typeof reviewResultSchema>;
 type ReviewItem = ReviewResult["items"][number];
+type AiAssessment = NonNullable<ReviewResult["aiAssessment"]>;
 type QueueRow = {
   id: string;
   status: string;
@@ -48,6 +49,7 @@ export function ReviewWorkspace() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [summary, setSummary] = useState("请选择一条学生提交，然后点击 Qwen 形式审查。");
   const [confidence, setConfidence] = useState(0);
+  const [aiAssessment, setAiAssessment] = useState<AiAssessment | null>(null);
   const [teacherScore, setTeacherScore] = useState<number | null>(null);
   const [reviewStatus, setReviewStatus] = useState<"draft" | "returned" | "reviewed" | "graded">("draft");
   const [teacherComment, setTeacherComment] = useState("");
@@ -100,10 +102,12 @@ export function ReviewWorkspace() {
         setItems(corrected);
         setSummary(review.overall_suggestion);
         setConfidence(Number(review.confidence));
+        setAiAssessment(parsed.aiAssessment ?? null);
       } else {
         setItems([]);
         setSummary("当前版本尚未完成形式审查。");
         setConfidence(0);
+        setAiAssessment(null);
       }
       const file = version?.files?.[0];
       if (file) {
@@ -132,6 +136,7 @@ export function ReviewWorkspace() {
         setItems(parsed.items);
         setSummary(parsed.summary);
         setConfidence(parsed.confidence);
+        setAiAssessment(parsed.aiAssessment ?? null);
         await loadDetail(submissionId);
       }
       await loadQueue();
@@ -171,6 +176,13 @@ export function ReviewWorkspace() {
     setBatchOpen(true);
   }
 
+  function adoptAiScore() {
+    if (!aiAssessment) return;
+    setTeacherScore(aiAssessment.suggestedScore);
+    if (reviewStatus === "returned") setReviewStatus("reviewed");
+    message.success("已采纳 AI 建议分数，发布前仍可手动修改");
+  }
+
   async function runBatch() {
     const targets = queue.filter((item) => item.fileName && !item.hasReview);
     const nextRows = targets.map((item) => ({ ...item, batchStatus: "pending" as const }));
@@ -198,14 +210,14 @@ export function ReviewWorkspace() {
 
   return (
     <>
-      <div className="page-head"><div><h1>教师测评</h1><p>选择学生地图，由 Qwen 检查四项形式要素，再由教师复评和发布成绩。</p></div><Space><Button icon={<ThunderboltOutlined />} onClick={openBatch}>批量形式审查</Button></Space></div>
+      <div className="page-head"><div><h1>教师测评</h1><p>选择学生地图，由 Qwen 检查四项形式要素，并按作业要求给出评分建议。</p></div><Space><Button icon={<ThunderboltOutlined />} onClick={openBatch}>批量形式审查</Button></Space></div>
       <section className="review-control-card">
         <div className="review-control-row"><label><b>当前作业</b><Select value={selected?.assignmentId} options={assignmentOptions} onChange={(assignmentId) => setSelectedId(queue.find((item) => item.assignmentId === assignmentId)?.id)} /></label><div className="review-stat-tags"><Tag>已上传 {queue.filter((item) => item.fileName).length}</Tag><Tag color="blue">待审查 {queue.filter((item) => item.fileName && !item.hasReview).length}</Tag></div></div>
         <div className="review-picker-grid"><label><b>班级</b><Select value={selected?.className} options={selected ? [{ value: selected.className, label: selected.className }] : []} /></label><label><b>学生</b><Select value={selectedId} options={queue.filter((item) => item.assignmentId === selected?.assignmentId).map((item) => ({ value: item.id, label: `${item.studentName} · ${item.studentNo}` }))} onChange={setSelectedId} /></label></div>
       </section>
       {!queue.length ? <section className="panel"><Empty description="当前没有学生提交" /></section> : (
         <>
-          <Alert type={items.length ? "success" : "info"} showIcon message={summary} description={items.length ? `检测到 ${presentCount} / 4 项形式要素，Qwen 判断置信度 ${Math.round(confidence * 100)}%。` : "形式审查不计分，只有教师点击后才调用 Qwen。"} action={<Button loading={reviewing} icon={<ReloadOutlined />} onClick={() => void runReview()}>Qwen 形式审查</Button>} style={{ marginBottom: 18 }} />
+          <Alert type={items.length ? "success" : "info"} showIcon message={summary} description={items.length ? `检测到 ${presentCount} / 4 项形式要素，Qwen 判断置信度 ${Math.round(confidence * 100)}%。形式审查不计入成绩，AI 分数仅供教师参考。` : "形式审查不计分，只有教师点击后才调用 Qwen。"} action={<Button loading={reviewing} icon={<ReloadOutlined />} onClick={() => void runReview()}>Qwen 审查与评分建议</Button>} style={{ marginBottom: 18 }} />
           <div className="formal-review-grid">
             <section className="panel"><div className="panel-head"><span className="panel-title">地图预览</span>{latest && <Tag>第 {latest.version_no} 版</Tag>}</div><div className="panel-body"><MapFilePreview {...preview} loading={loading} onRefresh={() => selectedId && void loadDetail(selectedId)} /></div></section>
             <section className="panel"><div className="panel-head"><span className="panel-title">形式要素审查</span><Tag color={items.length ? "green" : "default"}>{items.length ? `已检查 ${items.length} 项` : "等待审查"}</Tag></div><div className="formal-check-list">{checks.map((check) => {
@@ -213,6 +225,37 @@ export function ReviewWorkspace() {
               return <article className={`formal-check-card ${item ? item.present ? "is-present" : "is-missing" : ""}`} key={check.id}><div className="formal-check-icon">{item ? item.present ? <CheckCircleFilled /> : <CloseCircleFilled /> : "?"}</div><div className="formal-check-copy"><h3>{check.title}</h3><p>{item?.evidence ?? check.description}</p></div><Select value={item ? item.present ? "present" : "missing" : "pending"} disabled={!item} onChange={(value) => setItems((current) => current.map((entry) => entry.rubricId === check.id ? { ...entry, present: value === "present" } : entry))} options={[{ value: "pending", label: "待审查" }, { value: "present", label: "有" }, { value: "missing", label: "无" }]} /></article>;
             })}</div></section>
           </div>
+          {aiAssessment && (
+            <section className="panel ai-assessment-panel">
+              <div className="panel-head">
+                <span className="panel-title">AI 辅助评分建议</span>
+                <Space>
+                  <Tag color="blue">要求匹配度 {Math.round(aiAssessment.requirementMatch * 100)}%</Tag>
+                  <Button size="small" type="primary" onClick={adoptAiScore}>采纳建议分数</Button>
+                </Space>
+              </div>
+              <div className="ai-assessment-body">
+                <div className="ai-score-box">
+                  <span>建议分数</span>
+                  <strong>{aiAssessment.suggestedScore}</strong>
+                  <small>{aiAssessment.scoreRange.min} - {aiAssessment.scoreRange.max} 分建议区间</small>
+                </div>
+                <div className="ai-assessment-copy">
+                  <div><b>优点</b><ul>{aiAssessment.strengths.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div><b>问题</b><ul>{aiAssessment.issues.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div><b>修改建议</b><ul>{aiAssessment.suggestions.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                </div>
+                <div className="ai-dimension-list">
+                  {aiAssessment.dimensions.map((item) => (
+                    <div className="ai-dimension-item" key={item.name}>
+                      <div><b>{item.name}</b><span>{item.comment}</span></div>
+                      <Tag color="green">{item.score}</Tag>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
           <section className="review-score-section">
             <div className="review-score-grid"><div className="review-score-card"><span>形式审查</span><strong>{items.length ? `${presentCount} / 4` : "待审查"}</strong><small>仅检查要素是否存在，不计入分数</small></div><div className="review-score-card"><span>缺失要素</span><strong>{items.length ? `${4 - presentCount} 项` : "待审查"}</strong><small>作为退回修改依据</small></div><div className="review-score-card is-active"><span>教师评分</span><strong>{reviewStatus === "returned" ? "无" : teacherScore ?? "未评分"}</strong><small>由教师人工评定</small></div><div className="review-score-card"><span>提交状态</span><strong>{selected?.status ?? "无"}</strong><small>保存后同步到学生端</small></div></div>
             <div className="teacher-review-form"><label><b>教师评分</b><InputNumber min={0} max={100} precision={1} disabled={reviewStatus === "returned"} value={teacherScore} onChange={setTeacherScore} /></label><label><b>状态</b><Select value={reviewStatus} onChange={(value) => { setReviewStatus(value); if (value === "returned") setTeacherScore(null); }} options={[{ value: "draft", label: "保存草稿" }, { value: "returned", label: "退回修改" }, { value: "reviewed", label: "确认复评" }, { value: "graded", label: "发布成绩" }]} /></label><label className="teacher-comment-field"><b>{reviewStatus === "returned" ? "退回原因（可不填）" : "评语"}</b><Input.TextArea rows={4} value={teacherComment} placeholder={reviewStatus === "returned" ? "可选：补充退回原因；不填写时学生端会提示按形式审查结果修改。" : "填写教师复评意见。"} onChange={(event) => setTeacherComment(event.target.value)} /></label><Button type="primary" size="large" icon={<SaveOutlined />} onClick={() => void saveReview()}>保存复评</Button></div>

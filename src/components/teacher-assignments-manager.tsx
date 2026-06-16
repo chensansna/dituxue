@@ -161,7 +161,7 @@ export function TeacherAssignmentsManager() {
               <Checkbox checked={noDeadline} onChange={(event) => { setNoDeadline(event.target.checked); if (event.target.checked) form.setFieldValue("deadline", null); }}>无截止日期</Checkbox>
             </Space>
           </Form.Item>
-          <Form.Item name="description" label="任务说明"><Input.TextArea rows={4} placeholder="填写任务目标、提交格式和注意事项" /></Form.Item>
+          <Form.Item name="description" label="任务说明 / AI评分要求"><Input.TextArea rows={4} placeholder="例如：绘制江苏省边界图，要求省界清晰、城市或主要要素表达完整，并包含图例、比例尺、指北针和坐标格网。" /></Form.Item>
           <Form.Item name="status" label="创建后状态"><Select options={[{ value: "published", label: "立即发布" }, { value: "draft", label: "保存为草稿" }]} /></Form.Item>
         </Form>
       </Modal>

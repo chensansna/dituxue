@@ -11,6 +11,22 @@ export const reviewResultSchema = z.object({
     present: z.boolean(),
     evidence: z.string(),
   })),
+  aiAssessment: z.object({
+    suggestedScore: z.number().min(0).max(100),
+    scoreRange: z.object({
+      min: z.number().min(0).max(100),
+      max: z.number().min(0).max(100),
+    }),
+    requirementMatch: z.number().min(0).max(1),
+    strengths: z.array(z.string()),
+    issues: z.array(z.string()),
+    suggestions: z.array(z.string()),
+    dimensions: z.array(z.object({
+      name: z.string(),
+      score: z.number().min(0).max(100),
+      comment: z.string(),
+    })),
+  }).optional(),
 });
 
 export const rosterSchema = z.array(z.object({

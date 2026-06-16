@@ -81,6 +81,20 @@ a { color: inherit; text-decoration: none; }
 .formal-check-copy h3 { margin:0 0 5px; font-size:15px; }
 .formal-check-copy p { margin:0; color:var(--muted); line-height:1.55; font-size:12px; }
 .review-score-section { margin-top:18px; display:grid; gap:18px; }
+.ai-assessment-panel { margin-top:18px; overflow:hidden; }
+.ai-assessment-body { padding:18px; display:grid; grid-template-columns:210px minmax(0,1fr); gap:18px; }
+.ai-score-box { min-height:170px; padding:20px; border-radius:18px; background:linear-gradient(150deg,#0f7a56,#2d67dc); color:white; display:grid; align-content:space-between; box-shadow:0 18px 36px rgba(15,122,86,.18); }
+.ai-score-box span { color:rgba(255,255,255,.78); font-size:13px; }
+.ai-score-box strong { font-size:52px; line-height:1; letter-spacing:-2px; }
+.ai-score-box small { color:rgba(255,255,255,.82); }
+.ai-assessment-copy { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.ai-assessment-copy > div { min-height:170px; padding:16px; border:1px solid var(--line); border-radius:16px; background:#f9fbfa; }
+.ai-assessment-copy b { display:block; margin-bottom:8px; }
+.ai-assessment-copy ul { margin:0; padding-left:18px; color:var(--muted); line-height:1.7; font-size:12px; }
+.ai-dimension-list { grid-column:1/-1; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.ai-dimension-item { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 16px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.ai-dimension-item b { display:block; margin-bottom:4px; }
+.ai-dimension-item span { color:var(--muted); font-size:12px; line-height:1.55; }
 .review-score-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 .review-score-card { min-height:124px; padding:18px; border:1px solid var(--line); border-radius:16px; background:#f5f8fa; display:grid; align-content:space-between; }
 .review-score-card.is-active { border-color:#a9d7c2; background:#eef9f3; }
@@ -149,6 +163,7 @@ a { color: inherit; text-decoration: none; }
   .map-image-preview, .map-pdf-frame { min-height:350px; }
   .review-control-row { align-items:stretch; flex-direction:column; }
   .review-picker-grid, .formal-review-grid { grid-template-columns:1fr; }
+  .ai-assessment-body, .ai-assessment-copy, .ai-dimension-list { grid-template-columns:1fr; }
   .review-score-grid { grid-template-columns:repeat(2,1fr); }
   .teacher-review-form { grid-template-columns:1fr; }
   .teacher-comment-field { grid-column:auto; }
