@@ -148,7 +148,6 @@ export function ReviewWorkspace() {
     if (!selectedId) return;
     if (!items.length) return message.warning("请先完成 Qwen 形式审查");
     if (reviewStatus === "graded" && teacherScore === null) return message.warning("发布成绩前请填写教师评分");
-    if (reviewStatus === "returned" && !teacherComment.trim()) return message.warning("退回修改时请填写原因");
     const response = await fetch(`/api/teacher/review/${selectedId}/save`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -216,7 +215,7 @@ export function ReviewWorkspace() {
           </div>
           <section className="review-score-section">
             <div className="review-score-grid"><div className="review-score-card"><span>形式审查</span><strong>{items.length ? `${presentCount} / 4` : "待审查"}</strong><small>仅检查要素是否存在，不计入分数</small></div><div className="review-score-card"><span>缺失要素</span><strong>{items.length ? `${4 - presentCount} 项` : "待审查"}</strong><small>作为退回修改依据</small></div><div className="review-score-card is-active"><span>教师评分</span><strong>{reviewStatus === "returned" ? "无" : teacherScore ?? "未评分"}</strong><small>由教师人工评定</small></div><div className="review-score-card"><span>提交状态</span><strong>{selected?.status ?? "无"}</strong><small>保存后同步到学生端</small></div></div>
-            <div className="teacher-review-form"><label><b>教师评分</b><InputNumber min={0} max={100} precision={1} disabled={reviewStatus === "returned"} value={teacherScore} onChange={setTeacherScore} /></label><label><b>状态</b><Select value={reviewStatus} onChange={(value) => { setReviewStatus(value); if (value === "returned") setTeacherScore(null); }} options={[{ value: "draft", label: "保存草稿" }, { value: "returned", label: "退回修改" }, { value: "reviewed", label: "确认复评" }, { value: "graded", label: "发布成绩" }]} /></label><label className="teacher-comment-field"><b>{reviewStatus === "returned" ? "退回原因" : "评语"}</b><Input.TextArea rows={4} value={teacherComment} onChange={(event) => setTeacherComment(event.target.value)} /></label><Button type="primary" size="large" icon={<SaveOutlined />} onClick={() => void saveReview()}>保存复评</Button></div>
+            <div className="teacher-review-form"><label><b>教师评分</b><InputNumber min={0} max={100} precision={1} disabled={reviewStatus === "returned"} value={teacherScore} onChange={setTeacherScore} /></label><label><b>状态</b><Select value={reviewStatus} onChange={(value) => { setReviewStatus(value); if (value === "returned") setTeacherScore(null); }} options={[{ value: "draft", label: "保存草稿" }, { value: "returned", label: "退回修改" }, { value: "reviewed", label: "确认复评" }, { value: "graded", label: "发布成绩" }]} /></label><label className="teacher-comment-field"><b>{reviewStatus === "returned" ? "退回原因（可不填）" : "评语"}</b><Input.TextArea rows={4} value={teacherComment} placeholder={reviewStatus === "returned" ? "可选：补充退回原因；不填写时学生端会提示按形式审查结果修改。" : "填写教师复评意见。"} onChange={(event) => setTeacherComment(event.target.value)} /></label><Button type="primary" size="large" icon={<SaveOutlined />} onClick={() => void saveReview()}>保存复评</Button></div>
           </section>
         </>
       )}

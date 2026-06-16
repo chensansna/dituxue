@@ -207,6 +207,23 @@ export async function disableStudent(teacherId: string, studentId: string) {
   if (error) throw error;
 }
 
+export async function resetStudentPassword(teacherId: string, studentId: string) {
+  const students = await listStudents(teacherId);
+  const student = students.find((item) => item.id === studentId);
+  if (!student) throw new Error("学生不属于当前教师");
+  const admin = createSupabaseAdminClient();
+  const password = initialPassword();
+  const updated = await admin.auth.admin.updateUserById(studentId, { password });
+  if (updated.error) throw updated.error;
+  const profile = await admin
+    .from("profiles")
+    .update({ must_change_password: true, disabled_at: null })
+    .eq("id", studentId)
+    .eq("role", "student");
+  if (profile.error) throw profile.error;
+  return { studentNo: student.studentNo, name: student.name, password };
+}
+
 export async function removeStudentsFromClasses(teacherId: string, items: Array<{ id: string; classId: string }>) {
   const classes = await listClasses(teacherId);
   const allowedClasses = new Set(classes.map((item) => item.id));

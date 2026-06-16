@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, Badge, Button, Empty, Layout, List, Menu, Popover, Space, Tag } from "antd";
@@ -27,6 +27,23 @@ type AppNotification = {
   tone: "info" | "warning" | "danger" | "success";
 };
 
+type RoleKey = "admin" | "teacher" | "student";
+
+type ProfileSkin = {
+  displayName: string;
+  honorific: string;
+  avatarColor: string;
+  themeMode: "light" | "dark";
+  themeColor: "green" | "blue" | "purple" | "slate";
+};
+
+const colorMap: Record<ProfileSkin["themeColor"], { brand: string; dark: string; accent: string }> = {
+  green: { brand: "#0f7a56", dark: "#083927", accent: "#1fa477" },
+  blue: { brand: "#2563eb", dark: "#172554", accent: "#38bdf8" },
+  purple: { brand: "#7c3aed", dark: "#2e1065", accent: "#c084fc" },
+  slate: { brand: "#334155", dark: "#0f172a", accent: "#64748b" },
+};
+
 const roleConfig = {
   teacher: {
     label: "教师端",
@@ -37,6 +54,7 @@ const roleConfig = {
       { key: "/teacher/review", icon: <AuditOutlined />, label: <Link href="/teacher/review">AI 审查与复评</Link> },
       { key: "/teacher/students", icon: <TeamOutlined />, label: <Link href="/teacher/students">班级与学生</Link> },
       { key: "/teacher/statistics", icon: <BarChartOutlined />, label: <Link href="/teacher/statistics">成绩统计</Link> },
+      { key: "/teacher/settings", icon: <SettingOutlined />, label: <Link href="/teacher/settings">个人设置</Link> },
     ],
   },
   student: {
@@ -46,6 +64,7 @@ const roleConfig = {
       { key: "/student", icon: <DashboardOutlined />, label: <Link href="/student">我的作业</Link> },
       { key: "/student/submissions", icon: <UploadOutlined />, label: <Link href="/student/submissions">提交记录</Link> },
       { key: "/student/grades", icon: <BarChartOutlined />, label: <Link href="/student/grades">成绩与反馈</Link> },
+      { key: "/student/settings", icon: <SettingOutlined />, label: <Link href="/student/settings">个人设置</Link> },
     ],
   },
   admin: {
@@ -60,6 +79,16 @@ const roleConfig = {
   },
 };
 
+function applySkin(skin: Pick<ProfileSkin, "themeMode" | "themeColor">) {
+  const root = document.documentElement;
+  const colors = colorMap[skin.themeColor] ?? colorMap.green;
+  root.dataset.theme = skin.themeMode;
+  root.dataset.color = skin.themeColor;
+  root.style.setProperty("--brand", colors.brand);
+  root.style.setProperty("--brand-dark", colors.dark);
+  root.style.setProperty("--brand-2", colors.accent);
+}
+
 export function AppShell({
   role,
   children,
@@ -67,7 +96,7 @@ export function AppShell({
   subtitle,
   userName,
 }: {
-  role: keyof typeof roleConfig;
+  role: RoleKey;
   children: React.ReactNode;
   title: string;
   subtitle: string;
@@ -75,10 +104,46 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const config = roleConfig[role];
-  const displayName = userName ?? config.name;
+  const [profileSkin, setProfileSkin] = useState<ProfileSkin>({
+    displayName: userName ?? config.name,
+    honorific: "",
+    avatarColor: "#176b4d",
+    themeMode: "light",
+    themeColor: "green",
+  });
+  const displayName = profileSkin.displayName || userName || config.name;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(false);
+
+  const loadProfileSkin = useCallback(async () => {
+    try {
+      const response = await fetch("/api/profile/settings", { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) return;
+      const nextSkin: ProfileSkin = {
+        displayName: result.profile.displayName ?? userName ?? config.name,
+        honorific: result.profile.honorific ?? "",
+        avatarColor: result.profile.avatarColor ?? "#176b4d",
+        themeMode: result.profile.themeMode ?? "light",
+        themeColor: result.profile.themeColor ?? "green",
+      };
+      setProfileSkin(nextSkin);
+      applySkin(nextSkin);
+    } catch {
+      // Settings are cosmetic; failing to load them should not block the workspace.
+    }
+  }, [config.name, userName]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadProfileSkin(), 0);
+    const listener = () => void loadProfileSkin();
+    window.addEventListener("profile-settings-updated", listener);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("profile-settings-updated", listener);
+    };
+  }, [loadProfileSkin]);
 
   async function loadNotifications() {
     setNotificationLoading(true);
@@ -153,8 +218,8 @@ export function AppShell({
                 </Badge>
               </button>
             </Popover>
-            <Avatar style={{ background: "#176b4d" }}>{displayName.slice(0, 1)}</Avatar>
-            <span className="topbar-meta">{displayName}</span>
+            <Avatar style={{ background: profileSkin.avatarColor }}>{displayName.slice(0, 1)}</Avatar>
+            <span className="topbar-meta">{profileSkin.honorific || displayName}</span>
           </Space>
         </header>
         <main className="content">{children}</main>

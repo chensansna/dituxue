@@ -417,7 +417,7 @@ export async function saveTeacherReview(teacherId: string, submissionId: string,
   await admin.from("submissions").update({
     status: statusMap[input.action],
     teacher_feedback: input.feedback,
-    returned_reason: input.action === "returned" ? input.returnedReason || input.feedback : null,
+    returned_reason: input.action === "returned" ? input.returnedReason || input.feedback || "教师已退回，请按形式审查结果修改后重新提交。" : null,
     updated_at: new Date().toISOString(),
   }).eq("id", submissionId);
   if (input.action === "graded") {

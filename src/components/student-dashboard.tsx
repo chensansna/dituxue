@@ -98,7 +98,9 @@ export function StudentDashboard() {
                 </div>
                 <div className="review-copy">
                   {assignment.className} · 截止 {new Date(assignment.deadline).toLocaleString("zh-CN")}<br />
-                  {assignment.submission?.returned_reason || assignment.submission?.teacher_feedback || assignment.description || "请按要求提交地图文件。"}
+                  {assignment.submission?.status === "returned"
+                    ? assignment.submission.returned_reason || assignment.submission.teacher_feedback || "教师已退回，请按形式审查结果修改后重新提交。"
+                    : assignment.submission?.teacher_feedback || assignment.description || "请按要求提交地图文件。"}
                 </div>
                 {assignment.extensionReason && <Tag color="gold" style={{ marginTop: 8 }}>个人延期：{assignment.extensionReason}</Tag>}
                 <Space style={{ marginTop: 12 }}>

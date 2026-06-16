@@ -159,6 +159,81 @@ a { color: inherit; text-decoration: none; }
   .stats-filter-bar { grid-template-columns:1fr; }
 }
 
+.settings-tabs {
+  max-width: 880px;
+}
+
+.settings-card {
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.settings-card .ant-form {
+  max-width: 620px;
+}
+
+.settings-profile-preview {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,.82), rgba(15,122,86,.08));
+}
+
+.settings-profile-preview h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.settings-profile-preview p,
+.settings-help {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.avatar-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.avatar-color-grid .ant-radio-button-wrapper {
+  width: 46px;
+  height: 40px;
+  padding: 0;
+  border-radius: 14px !important;
+  display: inline-grid;
+  place-items: center;
+  border-inline-start-width: 1px !important;
+}
+
+.avatar-color-grid .ant-radio-button-wrapper::before {
+  display: none !important;
+}
+
+.avatar-color-grid .ant-radio-button-wrapper span:not(.ant-radio-button) {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.75);
+}
+
+.settings-password-box {
+  min-width: 260px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #f2f7f4;
+  color: var(--brand-dark);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: .4px;
+}
+
 /* Spatial teaching workspace visual refresh */
 :root {
   --brand: #0f7a56;
@@ -765,4 +840,77 @@ textarea.ant-input {
     padding: 22px;
     border-radius: 22px;
   }
+}
+
+/* User appearance settings must stay last so saved preferences win over the base skin. */
+html[data-theme="dark"] {
+  --ink: #e7f0eb;
+  --muted: #9fb3aa;
+  --line: rgba(210, 236, 225, .14);
+  --canvas: #071410;
+  --surface: rgba(13, 28, 23, .92);
+  --surface-solid: #0d1c17;
+}
+
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 16% -6%, color-mix(in srgb, var(--brand) 30%, transparent), transparent 34rem),
+    radial-gradient(circle at 84% 8%, rgba(77, 143, 216, .12), transparent 32rem),
+    linear-gradient(180deg, #091813 0%, #071410 64%, #050d0a 100%);
+}
+
+html[data-theme="dark"] .topbar {
+  background: rgba(8, 20, 16, .78);
+}
+
+html[data-theme="dark"] .panel-head,
+html[data-theme="dark"] .metric,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .review-score-card,
+html[data-theme="dark"] .teacher-review-form,
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .class-card {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .ant-table,
+html[data-theme="dark"] .ant-table-thead > tr > th,
+html[data-theme="dark"] .ant-table-tbody > tr > td,
+html[data-theme="dark"] .ant-card,
+html[data-theme="dark"] .ant-tabs-tab,
+html[data-theme="dark"] .ant-modal-content,
+html[data-theme="dark"] .ant-modal-header {
+  background: var(--surface-solid) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .ant-input,
+html[data-theme="dark"] .ant-input-affix-wrapper,
+html[data-theme="dark"] .ant-input-number,
+html[data-theme="dark"] .ant-picker,
+html[data-theme="dark"] .ant-select-selector,
+html[data-theme="dark"] textarea.ant-input {
+  background: rgba(8, 20, 16, .86) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .ant-btn-default,
+html[data-theme="dark"] .notification-button {
+  background: rgba(255,255,255,.08);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .settings-profile-preview,
+html[data-theme="dark"] .settings-password-box {
+  background: rgba(255,255,255,.06);
+  color: var(--ink);
+}
+
+html[data-color="blue"] .ant-btn-primary,
+html[data-color="purple"] .ant-btn-primary,
+html[data-color="slate"] .ant-btn-primary {
+  background: linear-gradient(135deg, var(--brand-2), var(--brand)) !important;
+  box-shadow: 0 13px 28px color-mix(in srgb, var(--brand) 28%, transparent);
 }
