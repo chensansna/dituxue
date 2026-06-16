@@ -29,6 +29,7 @@ a { color: inherit; text-decoration: none; }
 .page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:22px; }
 .page-head h1 { margin:0 0 7px; font-size:26px; letter-spacing:-.5px; }
 .page-head p { margin:0; color:var(--muted); font-size:13px; }
+.overview-action-row { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
 .metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
 .metric { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; }
 .metric-label { color:var(--muted); font-size:12px; margin-bottom:12px; }
@@ -137,6 +138,8 @@ a { color: inherit; text-decoration: none; }
   .metric { padding:14px; }
   .two-col, .directory-grid { grid-template-columns:1fr; }
   .page-head { flex-direction:column; }
+  .overview-action-row { width:100%; justify-content:stretch; }
+  .overview-action-row a, .overview-action-row .ant-btn { width:100%; }
   .desktop-table { display:none; }
   .mobile-cards { display:block; }
   .login-page { grid-template-columns:1fr; }

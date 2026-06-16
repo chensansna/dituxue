@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button, Empty, Table, Tag } from "antd";
-import { ArrowRightOutlined, PlusOutlined, RobotOutlined, UploadOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, PlusOutlined, RobotOutlined, SafetyCertificateOutlined, UploadOutlined } from "@ant-design/icons";
 import type { TeacherOverview } from "@/lib/supabase/teacher-data";
 import { MetricGrid } from "./metric-grid";
 
@@ -17,7 +17,8 @@ export function TeacherDashboard({ data }: { data: TeacherOverview }) {
   return <>
     <div className="page-head">
       <div><h1>教学概览</h1><p>显示当前账号名下班级、作业、学生和待复评数据。</p></div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div className="overview-action-row">
+        <Link href="/teacher/review"><Button type="primary" size="large" icon={<SafetyCertificateOutlined />}>进入 AI 审查与复评</Button></Link>
         <Link href="/teacher/students"><Button icon={<UploadOutlined />}>管理班级与学生</Button></Link>
         <Link href="/teacher/assignments"><Button type="primary" icon={<PlusOutlined />}>创建作业</Button></Link>
       </div>
